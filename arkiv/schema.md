@@ -1,3 +1,190 @@
 # Arkiv schema
 
-To be written in Phase 2 (see docs/ARCHITECTURE.md).
+Chain: Arkiv Tiramisu testnet (chain id 7738577). SDK: `@arkiv-network/sdk` 0.8.1. Every entity is a plain Arkiv entity: **no smart contracts, no off-chain index, no backend**. Source of truth in code: attribute table `packages/core/src/codec/attrs.ts`, encoders `packages/core/src/codec/entities.ts`, validators `packages/core/src/codec/schemas.ts`, TTLs `packages/core/src/services/context.ts`, the only SDK importer `packages/core/src/arkiv/adapter.ts`.
+
+> Status legend: items tagged **[unverified]** have not yet been exercised against Tiramisu with a funded key (write-side). Section 8 lists each with the fallback that is implemented. Read-side facts (queries, `getBlockTiming`, `$key`/`$owner`/`$creator`/`$expiresAt` filters, `atBlock`) were probed on 16 Oct. This file is updated after the chain spike (`pnpm spike`).
+
+## 1. Conventions
+
+- Every entity carries `project = str('bhaiyaplease')` and `type = str('<entity>')`. Anyone can write that tag, so **nothing is trusted because of it**; trust comes from `$creator` / `$owner` (section 6).
+- Payload is UTF-8 JSON, `contentType = application/json`, always far below the 128 KiB limit.
+- Addresses, keys and bytes32 values are lowercased in core so comparisons are plain `===`.
+- Lifetimes are given to the SDK as `ExpirationTime.fromSeconds(n)` with `n` rounded up to a whole number of 2 s blocks (minimum 2). The chain returns `$expiresAt` as a block number; the adapter converts to unix seconds using `getBlockTiming()`.
+- Every read is validated with zod; entities with a wrong tag, wrong attribute type, bad geohash, out-of-range number or malformed payload are **dropped** (reported to `onSdkError`), never shown.
+- Reputation is **never stored**. There is no score, rank or tier entity.
+
+## 2. Entity types
+
+Attribute types are Arkiv attribute types (`str`, `i32`, `u64`, `addr`, `key`, `bytes32`). Flags: **RO** = `readonly`, **PE** = `permissionlessExtension`. Flags are immutable after creation.
+
+| Entity | Flags | Expiry (from creation) | Created by | `$owner` | Why this ownership |
+|---|---|---|---|---|---|
+| `shop` | PE | 30 d; any wallet's "still open" resets to now + 30 d | any wallet (lister) | lister | Community data, nobody needs special rights. PE lets neighbours keep it alive instead of the lister. |
+| `run` | none (must be patched) | `etaMinutes*60 + 600` s (ETA + 10 min) | runner | runner | Only the runner may decrement `capacity_left` or delete the run. Not RO because accept patches it. |
+| `request` | RO | `max(60, run.expiresAt - now + 3600)` s (run expiry + 1 h grace). Extended to 1 y when a receipt is issued; to 180 d when a complaint is filed (each only if that moves expiry later) | resident | resident | The commit must be immutable (RO), and the resident keeps the right to extend/delete it. |
+| `accept` | none | `max(2, run.expiresAt - now)` s (dies with the run) | runner | runner | Proves the runner took the job; written atomically with the run patch. |
+| `delivery` | RO | 1 y | runner | runner | The runner reveals the handoff secret; RO so the reveal cannot be rewritten. |
+| `receipt` | RO | 1 y; the owner (runner) can renew +1 y | **resident** | **runner** (transferred) | The point of the project: the resident authors it (`$creator`, unforgeable, immutable) but the **runner owns it**, so reputation is a portable asset the runner holds and renews, and no platform database owns it. |
+| `complaint` | RO | 180 d | resident | resident | The accused runner cannot delete or edit it (not the owner). The resident keeps ownership on purpose. |
+| `attestation` | RO | 180 d | verifier | verifier | Contains no ID data, only "this wallet was checked". Verifier revokes by deleting (RO still allows delete). |
+
+## 3. Attributes (besides `project`, `type`)
+
+| Attribute | Arkiv type | Used by | Purpose |
+|---|---|---|---|
+| `subject` | addr | attestation | Wallet being attested |
+| `level` | str | attestation | `id_checked` / `resident` / `successor` |
+| `prev` | addr | attestation (only `successor`, required iff successor) | Old wallet whose receipts carry over (key rotation) |
+| `at` | u64 | attestation, receipt, complaint | Writer-declared unix time. Reputation windows use `$createdAt`, not this; `at` exists because `$createdAt` is not filterable, and the complaint query filters `at >= since` |
+| `zone` | str (geohash-6) | shop, delivery, receipt | Shop location / delivery zone |
+| `zone5` | str (geohash-5) | shop | Route/catchment area; must equal `zone[0..5]` or the shop is dropped |
+| `category` | str | shop | `grocery` `bakery` `pharmacy_otc` `stationery` `household` |
+| `name_tag` | str (1-48 chars) | shop | Public shop name (synthetic in the demo) |
+| `dest_zone` | str (geohash-6) | run, request | Destination building zone |
+| `from_zone` | str (geohash-6) | run | Where the runner is coming from |
+| `eta` | u64 | run | Unix seconds. u64 so it supports range queries |
+| `capacity_left` | i32 (0-3) | run | Decremented by `accept` in the same batch |
+| `tier` | i32 (0-2) | run | **Self-declared** tier at announce time. Display hint only; limits always use the viewer-computed tier |
+| `run` | key | request, accept | Run this request/accept refers to |
+| `shop` | key | request | Shop to buy from |
+| `max_price` | i32 (rupees, 0-100000) | request | Price ceiling; checked against the runner's computed tier cap |
+| `tip` | i32 (rupees) | request | Tip offered |
+| `code_commit` | bytes32 | request | `keccak256(utf8(code) ‖ salt(16 B) ‖ requestKey(32 B))` |
+| `request` | key | accept, delivery, complaint | Request referred to |
+| `rider` | addr | accept, delivery, receipt, complaint | The runner |
+| `resident` | addr | delivery | Request creator (informational; trust uses `$creator`) |
+| `delivery` | key | receipt | Delivery being credited |
+| `reason` | str | complaint | `no_show` / `wrong_item` / `rude` |
+
+Per entity (exactly `ENTITY_ATTRS` in code):
+
+```
+attestation: subject level [prev] at
+shop:        zone zone5 category name_tag
+run:         dest_zone from_zone eta capacity_left tier
+request:     run shop dest_zone max_price tip code_commit
+accept:      request run rider
+delivery:    request rider resident zone
+receipt:     rider delivery zone at
+complaint:   rider request reason at
+```
+
+## 4. Payloads (JSON)
+
+| Entity | Payload | Notes |
+|---|---|---|
+| shop | `{}` | |
+| run | `{ "note"?: string<=140 }` | Free text, synthetic in the demo |
+| request | `{ "items": string[1..3] }` | Each item 1-80 chars, e.g. "1 L toned milk" |
+| accept | `{}` | |
+| delivery | `{ "code": "0427", "salt": "0x<32 hex>" }` | The **reveal**. Public by design: it only proves the handoff happened; it is the first time it touches Arkiv |
+| receipt | `{ "tags": ReceiptTag[0..5] }` | `exact_item` `on_time` `polite` `good_price` `careful_packing`, no duplicates |
+| complaint | `{}` | |
+| attestation | `{}` | |
+
+Payloads with no schema accept any JSON object and ignore its contents.
+
+## 5. Queries the app runs
+
+Built with the typed builder `publicClient.select('*').where([...]).limit(200)` (`.ownedBy` → `$owner`, `.createdBy` → `$creator`, `.atBlock` for history), paginated up to 2000 rows. The strings below are the SDK's own rendering of those builders (`String(builder)`), with illustrative values. Lines marked *list* come from one helper that always prepends `project = str('bhaiyaplease') AND type = str('<type>')`.
+
+| Used by (core API) | Query |
+|---|---|
+| `getLiveRuns(destZone)` | `project = str('bhaiyaplease') AND type = str('run') AND dest_zone = str('tdr3c1') AND eta > u64(1760000000) AND capacity_left > i32(0)` |
+| `getMyRuns()` | `… type = str('run') AND $creator = addr(0x…)` |
+| `getShops(zone5, category?)` | `… type = str('shop') AND zone5 = str('tdr3c') [AND category = str('grocery')]` |
+| `getRequestsForRun(runKey)` | `… type = str('request') AND run = key(0x…)` |
+| `getMyRequests()` | `… type = str('request') AND $creator = addr(0x…)` |
+| accepts for a run (capacity, trust) | `… type = str('accept') AND run = key(0x…) AND $creator = addr(<runner>)` |
+| `getAcceptForRequest(requestKey)` | `… type = str('accept') AND request = key(0x…) AND $creator = addr(<run creator>)` |
+| `getDeliveryForRequest(requestKey)` | `… type = str('delivery') AND request = key(0x…)` |
+| `getReceiptsFor(rider)` (reputation core) | `… type = str('receipt') AND $owner = addr(<rider>)`, then per receipt a read of its Delivery and that Delivery's Request |
+| `issueReceipt` duplicate check | `… type = str('receipt') AND delivery = key(0x…) AND $creator = addr(<resident>)` |
+| `transferAllReceipts()` | `… type = str('receipt') AND $owner = addr(<self>)` |
+| `getComplaintsAgainst(rider, since?)` | `… type = str('complaint') AND rider = addr(0x…) [AND at >= u64(since)]`, then a read of each referenced Request |
+| `fileComplaint` duplicate check | `… type = str('complaint') AND request = key(0x…) AND $creator = addr(<resident>)` |
+| `getAttestationsFor(subject)` | `… type = str('attestation') AND subject = addr(0x…)` |
+| `getMyIssuedAttestations()` | `… type = str('attestation') AND $creator = addr(<verifier>)` |
+| any single-entity read (`getRun`, `getShop`, `getRequest`, `inspect`, joins) | `$key = key(0x…)` (note: implemented as a query on `$key`, not `getEntity`) |
+| `getProfileAt(addr, block)` | the profile queries above, each with `.atBlock(block)` |
+
+Also used (not queries): `predictEntityKeys({owner, count})`, `getBlockTiming()`, `getBlockNumber()`, `getBalance()`, `watchEntityEvents` (section 7), writes `createEntity` `patchEntity` `extendEntity` `changeOwnership` `deleteEntity` `executeBatch`.
+
+Never used: `!=`/`ne()` (the network is documented to reject it), `getEntityCount()`, match-all queries.
+
+## 6. Trust model
+
+Anyone can create any entity with `project=bhaiyaplease`. Only `$creator` (immutable) and `$owner` are unforgeable, so every read applies these rules (code: `services/*.ts`):
+
+| Read | Accepted only if | Stops |
+|---|---|---|
+| Run | `run.$owner == run.$creator`; limits use the runner's **computed** tier, never the `tier` attribute | Run hijack after transfer; fake "Trusted" claims |
+| Accept | `accept.$creator == run.$creator`, `accept.rider == accept.$creator`, refers to this run; earliest per request wins | Strangers "accepting" for a runner; double accept |
+| Delivery | reveal hashes to `request.code_commit`; `delivery.$creator == delivery.rider`; rider is not the requester; if a live Accept exists, rider matches it; earliest wins | Fake deliveries (the salted secret is unknown to anyone but resident and the scanning runner); a requester delivering to themselves; another runner stealing credit |
+| Receipt | delivery exists; reveal verifies; `delivery.rider == receipt.rider`; **`request.$creator == receipt.$creator`**; `receipt.$creator != receipt.rider`; the receipt is owned by the profile's wallet (`$owner` query) | Receipts for deliveries the issuer was not party to; self-issued receipts |
+| Duplicates | Only the **earliest** valid receipt per request counts; later ones are marked `duplicate` and shown greyed | A resident minting many receipts for one handoff |
+| Self-dealing | `receipt.$creator == rider` is invalid (`self_dealing`) | Runner issuing receipts to themselves |
+| Complaint | `complaint.$creator == request.$creator`, `complaint.$creator != rider`; one per request | Drive-by complaints from non-customers |
+| Attestation | counted as "verified" only if `$creator` is in the **viewer's** trusted-verifier list (`EXPO_PUBLIC_TRUSTED_VERIFIERS`), `attestation.$creator != subject`, not expired | Anyone minting "ID-checked" |
+| Shop | passes zod; `zone5 == zone[0..5]` | Malformed junk |
+
+**Reputation** (computed in `services/reputation.ts`, no writes): valid receipts, distinct `$creator` count, last-30-day window by `$createdAt`, complaints separately. Tiers: New (₹200 cap, 1 request/run); Verified = a trusted live attestation (₹500, 2/run); Trusted = Verified and >= 25 valid receipts from >= 15 distinct residents and <= 2 complaints in 30 d (₹1000, 3/run). A trusted `successor` attestation carries the `prev` wallet's receipts over.
+
+**Known limits (stated, not hidden):**
+- A determined attacker with N wallets can farm receipts from N fake "residents" by running requests against themselves. Mitigation: the Trusted tier requires a verifier attestation, which cannot be farmed; New-tier caps are small.
+- Complaint trust only requires that the complainer created *a* request that names the rider's run, accepted or not.
+- Receipts are only as honest as the resident who issues them; the system proves *who said it*, not that it is true.
+- Handoff secret is a 4-digit code plus a 16-byte random salt; the salt prevents brute-forcing the 10,000 codes from `code_commit`.
+- Key loss: the runner can `changeOwnership` every receipt to a new wallet (`transferAllReceipts`), or a verifier issues a `successor` attestation.
+
+## 7. Live updates
+
+One shared `watchEntityEvents` poller per client (interval 2000 ms). Events carry no attributes and no type, and there is no server-side filter, so core resolves each created/patched key with `get` (at most 10/s), drops anything not tagged `bhaiyaplease`, and fans out client-side. **Expiry produces no event**: the app hides runs by `eta`/`$expiresAt` against a ticking clock, and queries exclude expired entities on refetch. Screens also poll.
+
+## 8. Feature → what the user sees
+
+"UI wired" reflects `apps/mobile` at the time of writing (grep of `apps/mobile/{app,components,hooks}`); re-check before relying on it.
+
+| Arkiv feature | Entity / call | What the user sees | UI wired |
+|---|---|---|---|
+| Expiry | `run` (ETA + 10 min) | Runs on the board count down and vanish by themselves; a runner never has to clean up | yes (Countdown) |
+| Typed range query | `eta > u64`, `capacity_left > i32` | "Runs to your building" list, ordered by ETA, full runs hidden | yes |
+| Attribute query | `zone5`, `category` | Shops on the runner's route | yes |
+| `permissionlessExtension` + `extendEntity` | `shop` | Anyone taps "still open"; the row shows "last confirmed N d ago" / "fades in N d" derived from `$expiresAt` | yes (ShopRow); listing a shop is core-only |
+| `predictEntityKeys` + `bytes32` + `key` attrs | `request.code_commit` | Resident gets a QR and 4-digit code; the runner's scan is verified against the on-chain commit | yes |
+| Atomic `executeBatch` (create + patch) | `accept` + `run.capacity_left` | Capacity drops exactly when a request is accepted, never out of sync | yes |
+| `readonly` | request, delivery, receipt, complaint, attestation | "On-chain proof" panel shows `readonly: true`; nobody can edit a receipt | yes (OnChainProof) |
+| `changeOwnership` in the issuing batch | `receipt` | Receipt appears in the runner's wallet/profile; the resident remains the author | yes |
+| `$creator` vs `$owner` | receipt | Proof panel shows creator = resident, owner = runner; profile counts "N handoffs from M residents" | yes |
+| Client-side reputation from queries | profile | Tier badge, handoff counts, tags, no stored score | yes |
+| Complaints owned by the resident | `complaint` | Complaint shown on the runner's profile; runner cannot remove it | yes |
+| Attestation + trusted list | `attestation` | "ID-checked by <verifier>" and tier lift only for verifiers the viewer trusts; verifier can revoke | yes (verifier pages) |
+| `watchEntityEvents` | all | Board and request status update without refresh | yes (provider) |
+| `deleteEntity` | run, attestation | Runner cancels a run; verifier revokes | yes |
+| `extendEntity` by owner | receipt | Runner renews receipts for another year | core only |
+| `atBlock` historical query | `getProfileAt` | "Tier when you accepted" dispute view | core only (cut-able) |
+| Bulk `ownershipChanges` | `transferAllReceipts` | Move all receipts to a new wallet | core only (cut-able) |
+| `successor` attestation | attestation | Old wallet's receipts carry over | core only (cut-able) |
+
+Features marked "core only" are implemented and tested in `packages/core` but not claimed as user-visible.
+
+## 9. Deliberately off Arkiv
+
+Names, phone numbers, flat/door numbers, ID documents or numbers, exact GPS (only a geohash-6 cell leaves the device), chat, payments (UPI at the gate, off-chain), any delivery-platform data, the handoff code and salt **until the runner reveals them in the Delivery**, private keys, access keys, reputation scores (always recomputed), zone labels, the trusted-verifier list (viewer configuration), request secrets (kept in device storage). All demo content is synthetic: fictional shop names, persona ids, generic item lines.
+
+## 10. [unverified] write-side behaviour and implemented fallbacks
+
+None of these has a chain result yet; each is covered by a step in `scripts/spike`. Results will be recorded here and in `friction.md`.
+
+| # | Assumption | If wrong, what happens | Fallback in code |
+|---|---|---|---|
+| 1 | `changeOwnership` of an entity created earlier in the **same** `executeBatch` is accepted | Receipt batch rejected | `receiptMode: 'auto'` falls back to `two_tx`: batch(create + extend) then `changeOwnership`, retried 3x; a half-done receipt is resumed on retry rather than duplicated. Atomicity is lost; `$creator` is unaffected |
+| 2 | `extendEntity` works on a **readonly** entity (request extended to 1 y by receipt, 180 d by complaint) | Receipt/complaint batch fails | **None.** The two-tx fallback includes the same extension. If rejected we would drop the extension and rely on `atBlock` verification; not implemented |
+| 3 | A non-owner can `extendEntity` a `permissionlessExtension` entity | "Still open" tap fails | None; the feature shows an error. Not claimed unless verified |
+| 4 | `patchEntity` partial `set` leaves expiry and other attributes untouched (accept batch) | Run would lose attributes or expiry | None in code; the spike checks it |
+| 5 | `predictEntityKeys` key equals the created key when `salt` is passed | Request: created key differs, so the commit is unusable | Request: delete the stray entity and retry once, then `KEY_PREDICTION_MISMATCH`. Receipt: error, nothing transferred |
+| 6 | Access key is accepted as a URL path suffix `<rpc>/<KEY>`, and browsers can reach the RPC (CORS) | Rate limits / blocked reads | Run without a key (the public RPC served reads on 16 Oct) |
+| 7 | Block-to-time conversion via `getBlockTiming()` (observed 16 Oct: unix seconds, 2 s) | Expiry/`createdAt` drift | Falls back to `Date.now()` and 2 s blocks. Expiry comparisons carry a 60 s margin |
+| 8 | Batch size (20 transfers per batch) and read-after-write latency | Failures in bulk transfer; stale reads right after a write | Chunking; `scripts/seed` waits one block after each write and retries pre-write reads |
+| 9 | Explorer URL path `/entity/<key>` | Dead link in the proof panel | Link is only shown when `explorerBaseUrl` is configured |
+| 10 | Injected (MetaMask) signer | Wrong network | Optional path; the burner key path is the default |
