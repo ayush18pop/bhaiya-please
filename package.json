@@ -11,7 +11,7 @@
     "build:web": "pnpm --filter mobile build:web",
     "test": "pnpm --filter @bhaiya-please/core test",
     "typecheck": "pnpm -r typecheck",
-    "spike": "pnpm --filter @bhaiya-please/seed spike",
+    "spike": "pnpm --filter @bhaiya-please/spike spike",
     "seed": "pnpm --filter @bhaiya-please/seed seed",
     "heartbeat": "pnpm --filter @bhaiya-please/seed heartbeat"
   }

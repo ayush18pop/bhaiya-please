@@ -207,3 +207,13 @@ watch uses polling anyway. WARNING: a key in a static PWA is visible to every vi
 8. Query consistency: how soon after tx receipt is the entity visible via `select` (indexer lag)? `$expiresAt` filter behaviour.
 9. Max batch size / gas limit; is `$creator` filter correct after transfer (creator stays, owner changes)?
 10. `attributes` containing `u64` vs `i32` for `eta` in range queries across mixed writers.
+
+### Partially answered (16 Oct, read-only probe against Tiramisu with an unfunded key)
+- `getBlockTiming()` returns `currentBlockTime` in **unix seconds** and `blockDuration: 2` (seconds). Core's block→unix
+  conversion (`time + (block − currentBlock) · duration`) relies on this.
+- Public RPC without access key served `select('*')`, `$key`/`$expiresAt`/`$owner`/`$creator` filters, `getEntity`
+  (missing key → `NoEntityFoundError`), and `atBlock` historical queries. Owner/creator come back EIP-55; core lowercases.
+- Tiramisu carries steady third-party traffic (an indexer load generator creates entities every block), so the shared
+  watcher resolves foreign `EntityCreated` keys continuously; it caps at 10 `get`/s. If backlog grows, batch-resolve.
+- All write-side questions above remain open: `scripts/spike` (`pnpm --filter @bhaiya-please/spike spike`) answers them
+  once `.env` has a funded `SEED_PRIVATE_KEY` (+ optional `VERIFIER_PRIVATE_KEY` for the two-wallet checks).

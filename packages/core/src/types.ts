@@ -160,11 +160,12 @@ export type ReceiptInvalidReason =
   | 'reveal_mismatch'
   | 'creator_not_requester' // receipt.$creator !== request.$creator
   | 'rider_mismatch' // delivery.$creator / delivery.rider / receipt.rider disagree
-  | 'self_dealing'; // receipt.$creator === receipt.rider
+  | 'self_dealing' // receipt.$creator === receipt.rider
+  | 'duplicate'; // another valid receipt already credits the same request (one handoff = one credit)
 
 export interface DeliveryVerification {
   valid: boolean;
-  reason?: Exclude<ReceiptInvalidReason, 'creator_not_requester' | 'self_dealing' | 'delivery_missing'>;
+  reason?: Exclude<ReceiptInvalidReason, 'creator_not_requester' | 'self_dealing' | 'delivery_missing' | 'duplicate'>;
   delivery: Delivery;
   request?: Request;
 }
@@ -376,6 +377,11 @@ export interface BhaiyaPleaseConfig {
   explorerBaseUrl?: string;
   /** Optional logger for friction.md evidence. */
   onSdkError?: (op: string, err: unknown) => void;
+  /**
+   * Receipt issuance path. 'auto' (default): one atomic batch, falling back to 'two_tx' for the
+   * session if the chain rejects transferring an entity created in the same batch.
+   */
+  receiptMode?: 'auto' | 'batch' | 'two_tx';
 }
 
 export interface MockConfig {
