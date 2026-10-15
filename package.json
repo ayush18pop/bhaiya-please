@@ -1,0 +1,18 @@
+{
+  "name": "bhaiya-please",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Bhaiya, please le aana if possible: an open, app-neutral errand board on Arkiv",
+  "license": "MIT",
+  "packageManager": "pnpm@10.34.5",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "pnpm --filter mobile web",
+    "build:web": "pnpm --filter mobile build:web",
+    "test": "pnpm --filter @bhaiya-please/core test",
+    "typecheck": "pnpm -r typecheck",
+    "spike": "pnpm --filter @bhaiya-please/seed spike",
+    "seed": "pnpm --filter @bhaiya-please/seed seed",
+    "heartbeat": "pnpm --filter @bhaiya-please/seed heartbeat"
+  }
+}

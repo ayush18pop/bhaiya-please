@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.expo/
+web-build/
+*.tsbuildinfo
+.DS_Store
+.vercel/
+# secrets: never commit keys
+.env
+.env.*
+!.env.example
+*.key
