@@ -118,3 +118,7 @@ export const createMockBhaiyaPlease: CreateMockBhaiyaPlease = (config: MockConfi
     },
   });
 };
+
+// Light helpers for clients that import only the mock entry (no SDK): one wire format, one zone list.
+export { encodeHandoffQR, decodeHandoffQR, encodeAddressQR, decodeAddressQR } from '../codec/handoff';
+export { DEMO_ZONES } from '../zones';
