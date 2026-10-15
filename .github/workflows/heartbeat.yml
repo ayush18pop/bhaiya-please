@@ -1,0 +1,35 @@
+# Convenience operator for judges: keeps a few synthetic runs live on the board.
+# The app works without it. Disclosed in README. Safe to disable at any time.
+name: heartbeat
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: heartbeat
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm heartbeat
+        env:
+          # Testnet-only keys/secrets. Never committed, never written to Arkiv.
+          SEED_PRIVATE_KEY: ${{ secrets.SEED_PRIVATE_KEY }}
+          ARKIV_ACCESS_KEY: ${{ secrets.ARKIV_ACCESS_KEY }}
+          # Optional: only if the seed was run with a separate VERIFIER_PRIVATE_KEY.
+          VERIFIER_PRIVATE_KEY: ${{ secrets.VERIFIER_PRIVATE_KEY }}

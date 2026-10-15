@@ -1,0 +1,21 @@
+{
+  "name": "@bhaiya-please/seed",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "seed": "tsx seed.ts",
+    "heartbeat": "tsx heartbeat.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@arkiv-network/sdk": "0.8.1",
+    "@bhaiya-please/core": "workspace:*",
+    "viem": "2.57.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "tsx": "^4.23.15"
+  }
+}
