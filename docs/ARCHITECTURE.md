@@ -5,6 +5,12 @@ SDK facts reconciled with `docs/SDK_NOTES.md` (0.8.1, source-verified, not yet c
 **[verify on chain]** are the Thu-night spike's job. All SDK shapes live
 only in `packages/core/src/arkiv/adapter.ts`, so a wrong guess costs one file, not the app.
 
+> **Decision update (16 Oct, supersedes the web parts below):** the app is **`apps/mobile`: Expo + Expo Router + react-native-web**
+> (one codebase for web and Android), UI with **NativeWind + React Native Reusables**, TanStack Query, `react-native-qrcode-svg`,
+> `expo-camera` (scanning, with paste fallback). Env vars use the `EXPO_PUBLIC_*` prefix (not `VITE_*`). Web is deployed via
+> `expo export --platform web` to Vercel. pnpm uses `node-linker=hoisted` (Metro compatibility). Wherever this doc says
+> `apps/web`, Vite, react-router or `qr-scanner`, read the Expo equivalent.
+
 ## 1. Repo layout
 
 ```
