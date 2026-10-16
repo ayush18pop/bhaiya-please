@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
-import type { Accept, Address, Complaint, Delivery, EntityKey, Profile, Receipt, Request, Run, VerifiedReceipt } from '@bhaiya-please/core';
+import { useQueries, useQuery } from '@tanstack/react-query';
+import type { Accept, Address, Complaint, Delivery, EntityKey, Ping, Profile, Receipt, Request, Run, VerifiedReceipt } from '@bhaiya-please/core';
 import { useCore, useSession } from '@/components/providers';
 
 /** Every query is namespaced by the active wallet so role switches never show stale data. */
@@ -130,4 +130,35 @@ export function useMyRequests() {
     );
     return rows.sort((a, b) => b.request.createdAt - a.request.createdAt);
   });
+}
+
+// ------------------------------------------------------------------ live location
+
+/** Latest valid ping per run (trust-filtered in core). Refreshed by ping events + 5 s polling. */
+export const usePings = (runKeys: string[]) => {
+  const core = useCore();
+  const keys = [...runKeys].sort();
+  return useQ<Ping[]>(['pings', ...keys], () => core.getLatestPings(keys as EntityKey[]), keys.length > 0);
+};
+
+/** ≤ 2 min breadcrumb trail of one run. */
+export const useRunTrail = (runKey?: string | null) => {
+  const core = useCore();
+  return useQ<Ping[]>(['pings', 'trail', runKey], () => core.getRunTrail(runKey as EntityKey), !!runKey);
+};
+
+/** Viewer-computed tiers for several wallets (shares the ['profile', addr] cache with useProfile). */
+export function useTiers(addrs: Address[]) {
+  const core = useCore();
+  const { address } = useSession();
+  const uniq = [...new Set(addrs)];
+  const qs = useQueries({
+    queries: uniq.map((a) => ({ queryKey: [address, 'profile', a], queryFn: () => core.getProfile(a), structuralSharing: false })),
+  });
+  const out: Record<string, Profile['tier']['name']> = {};
+  uniq.forEach((a, i) => {
+    const t = qs[i]?.data?.tier.name;
+    if (t) out[a] = t;
+  });
+  return out;
 }

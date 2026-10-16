@@ -6,6 +6,7 @@ import { useColorScheme } from 'nativewind';
 import { toast } from 'sonner-native';
 import type { LucideIcon } from 'lucide-react-native';
 import { useCore, useSession } from '@/components/providers';
+import { PingBeacon } from '@/components/PingBeacon';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { useProfile, useBalance } from '@/hooks/queries';
@@ -177,7 +178,12 @@ function TierWatcher() {
 function TierWatcherGate() {
   const { core, role } = useSession();
   if (!core || role === 'verifier') return null;
-  return <TierWatcher />;
+  return (
+    <>
+      <TierWatcher />
+      {role === 'runner' ? <PingBeacon /> : null}
+    </>
+  );
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {

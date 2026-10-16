@@ -32,5 +32,7 @@ export async function createCore(wallet: RoleWallet, verifierAddress: Address | 
     address: wallet.address,
     trustedVerifiers: [...trustedVerifiers, mockAddressOf(PERSONA.verifier)],
     store: 'localStorage',
+    // Seeded runners move along a synthetic Whitefield route and publish coarse pings.
+    simulateMovement: true,
   });
 }

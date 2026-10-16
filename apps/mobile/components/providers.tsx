@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import type { Address } from '@bhaiya-please/core';
 import { createCore, type AnyCore } from '@/lib/core';
+import { markEvent } from '@/lib/live';
 import {
   ROLES, createWallet, deleteWallet, getRole, getZoneId, importWallet, isDemo, loadWallet, readQuery, resetDemo,
   saveRole, saveZoneId, setDemo, type Role, type RoleWallet,
@@ -148,7 +149,13 @@ function LiveBridge() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!core) return;
-    const off = core.subscribe({}, () => {
+    const off = core.subscribe({}, (e) => {
+      markEvent();
+      // Pings arrive every ~20 s per run: refresh only the map queries, not every screen.
+      if (e.type === 'ping') {
+        void qc.invalidateQueries({ predicate: (q) => q.queryKey.includes('pings') });
+        return;
+      }
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => qc.invalidateQueries(), 250);
     });

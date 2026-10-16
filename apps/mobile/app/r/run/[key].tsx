@@ -1,5 +1,11 @@
 import { useState } from 'react';
 import { View } from 'react-native';
+import type { Run, Shop } from '@bhaiya-please/core';
+import { MapView } from '@/components/map/MapView';
+import { LiveBadge } from '@/components/LiveBadge';
+import { usePings, useProfile } from '@/hooks/queries';
+import { runnerPin, shopPins, zoneCenter } from '@/lib/mapModel';
+import { zoneByHash } from '@/lib/zones';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArkivNote } from '@/components/ArkivNote';
 import { EmptyState, Page, SkeletonCards } from '@/components/Bits';
@@ -11,6 +17,35 @@ import { useRun, useShops } from '@/hooks/queries';
 import { useNow } from '@/hooks/useNow';
 import { fmt } from '@/lib/format';
 import { S } from '@/lib/strings';
+
+/** Shops on the runner's route, the runner (if sharing) and the gate. Tap a pin to pick the shop. */
+function RouteShopsMap({ run, shops, selected, onSelect }: { run: Run; shops: Shop[]; selected: string | null; onSelect: (k: string) => void }) {
+  const now = useNow();
+  const pings = usePings([run.key]);
+  const profile = useProfile(run.creator);
+  const gate = zoneCenter(run.destZone);
+  const pin = runnerPin(run, pings.data?.[0], now, { tier: profile.data?.tier.name ?? null, focused: true });
+  const pins = shopPins(shops, selected);
+  return (
+    <View className="h-64 overflow-hidden rounded-2xl border border-border bg-card shadow-sm shadow-black/10">
+      <MapView
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        society={{ pos: gate, label: `${zoneByHash(run.destZone)?.society ?? 'Your'} gate` }}
+        shops={pins}
+        runners={pin ? [pin] : []}
+        routes={pin ? [{ id: run.key, from: { runner: run.key }, to: gate, tone: 'muted' }] : []}
+        fit={[gate, ...pins.map((p) => p.pos)]}
+        fitKey={`${run.key}:${pins.length}`}
+        padding={{ top: 110, bottom: 40, left: 40, right: 40 }}
+        onShopPress={onSelect}
+        note="Shop pins: approximate, within their area"
+      />
+      <View pointerEvents="none" className="absolute left-3 top-3">
+        <LiveBadge dataUpdatedAt={pings.dataUpdatedAt} isError={pings.isError} />
+      </View>
+    </View>
+  );
+}
 
 export default function RunDetail() {
   const { key } = useLocalSearchParams<{ key: string }>();
@@ -46,6 +81,7 @@ export default function RunDetail() {
           <Text>{chosen ? fmt(S.shops.continueWith, { name: chosen.nameTag }) : S.shops.pickOne}</Text>
         </Button>
       }>
+      {r ? <RouteShopsMap run={r} shops={list} selected={sel} onSelect={setSel} /> : null}
       {r ? <RunCard run={r} showFrom={false} /> : <SkeletonCards n={1} />}
       <Text variant="h3">{S.shops.title}</Text>
       {shops.isLoading && !shops.data ? (

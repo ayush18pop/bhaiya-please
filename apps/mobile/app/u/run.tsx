@@ -6,6 +6,7 @@ import { ArkivNote } from '@/components/ArkivNote';
 import { EmptyState, Page, SkeletonCards } from '@/components/Bits';
 import { PriceStepper } from '@/components/PriceStepper';
 import { RunCard, runPhase } from '@/components/RunCard';
+import { RunnerLiveMap, SharingCard } from '@/components/RunnerLive';
 import { TierBadge } from '@/components/TierBadge';
 import { TxButton } from '@/components/TxButton';
 import { useCore, useSession } from '@/components/providers';
@@ -42,7 +43,7 @@ export default function RunnerRun() {
   const router = useRouter();
   const qc = useQueryClient();
   const now = useNow();
-  const { address, zoneId } = useSession();
+  const { address, zoneId, demo } = useSession();
   const profile = useProfile(address);
   const board = useRunnerBoard();
   const myZone = ZONES.find((z) => z.id === zoneId) ?? ZONES[0];
@@ -65,6 +66,8 @@ export default function RunnerRun() {
     return (
       <Page>
         <Text variant="h2">{S.runner.activeTitle}</Text>
+        <RunnerLiveMap run={active} />
+        <SharingCard demo={demo} />
         <RunCard run={active} />
         <Pressable onPress={() => router.replace('/u/requests')} className="rounded-xl border border-border bg-card p-4">
           <Text className="font-bold">{fmt(S.runner.requestsCount, { n: board.data?.rows.length ?? 0 })}</Text>

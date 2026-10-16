@@ -4,6 +4,7 @@ import { PartyPopper } from 'lucide-react-native';
 import { AliasChip } from '@/components/AliasChip';
 import { ArkivNote } from '@/components/ArkivNote';
 import { EmptyState, Page, SkeletonCards } from '@/components/Bits';
+import { LiveTracking } from '@/components/LiveTracking';
 import { Countdown } from '@/components/Countdown';
 import { OnChainProof } from '@/components/OnChainProof';
 import { RequestSummary } from '@/components/RequestSummary';
@@ -60,6 +61,7 @@ export default function RequestStatusScreen() {
           </Button>
         ) : undefined
       }>
+      {s.run && !s.lapsed && (s.stage === 'posted' || s.stage === 'accepted') ? <LiveTracking run={s.run} /> : null}
       <RequestSummary request={s.request} />
       <Card className="gap-4 py-5">
         <View className="px-2">
