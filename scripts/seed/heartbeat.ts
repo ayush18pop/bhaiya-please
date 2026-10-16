@@ -49,6 +49,7 @@ async function main(): Promise<void> {
   const howMany = between(2, 3);
   const chosen = [...RUNNERS].sort(() => Math.random() - 0.5).slice(0, howMany);
   let announced = 0;
+  let skipped = 0;
   const moving: { id: string; d: BhaiyaPlease; key: EntityKey }[] = [];
   for (const id of chosen) {
     const d = await openPersona(env, id);
@@ -58,7 +59,11 @@ async function main(): Promise<void> {
       const now = Date.now() / 1000;
       const mine = (await d.getMyRuns()).filter((r) => r.eta > now && r.capacityLeft > 0);
       if (mine.length >= MAX_LIVE_PER_RUNNER) {
-        log(`${id}: already has ${mine.length} live runs, skipping`);
+        // Busy runner: no new run, but keep its newest run moving on the map.
+        log(`${id}: already has ${mine.length} live runs, pinging the newest instead`);
+        moving.push({ id, d, key: mine[0]!.key });
+        keep = true;
+        skipped++;
         continue;
       }
       const toHome = Math.random() < 0.6;
@@ -118,7 +123,8 @@ async function main(): Promise<void> {
   for (const m of moving) m.d.close();
 
   log(`done: ${announced} run(s) announced, ${pinged} ping(s) sent`);
-  if (announced === 0) process.exitCode = 1;
+  // Fail only when nothing useful happened (every runner errored), not when all were busy.
+  if (announced === 0 && skipped === 0) process.exitCode = 1;
 }
 
 main().catch((e) => {

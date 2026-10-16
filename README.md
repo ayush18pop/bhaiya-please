@@ -6,7 +6,8 @@ An open, app-neutral errand board on [Arkiv](https://arkiv.network). A **runner*
 
 Built 16-18 Oct 2026 during the hackathon. No pre-existing code (the first commit is the start of the work). Built for the **Best Indian Use Case** track.
 
-- Live app: **`<DEPLOYMENT URL, TODO before submission>`** (works in a browser, no sign-up; Tiramisu testnet)
+- Live app (real Arkiv, Tiramisu testnet): **https://bhaiya-please.vercel.app**. Browse the live board read-only straight away; to post, get free test GLM from the [faucet](https://hub.arkiv.network/faucet).
+- Sandbox (in-memory mock, no gas needed, every flow clickable): **https://bhaiya-please-sandbox.vercel.app**. Click "Try demo", then "Open as Runner in new tab".
 - Demo video (<= 3 min): **`<VIDEO URL, TODO>`**
 - Schema (entities, attributes, expiry, queries, trust model): [`arkiv/schema.md`](arkiv/schema.md)
 - Friction report: [`arkiv/friction.md`](arkiv/friction.md)
