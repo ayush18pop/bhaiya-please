@@ -37,6 +37,7 @@ export const S = {
     create: 'Create my wallet',
     createHint: 'Stays on this phone. No sign-up.',
     import: 'Import a wallet',
+    readOnlyBanner: 'Viewing live Arkiv data. Get free test funds to post or accept runs.',
     unfundedTitle: 'Your wallet needs test funds',
     unfundedBody: "Get free test funds, then come back. We'll move on by ourselves.",
     getFunds: 'Get test funds',

@@ -102,10 +102,27 @@ function Unfunded() {
   );
 }
 
+/** Unfunded wallets can still browse the live chain read-only; funding is only needed to write. */
 function Funded({ children }: { children: React.ReactNode }) {
   const bal = useBalance();
-  if (CORE_MODE === 'real' && bal.isSuccess && bal.data === 0n) return <Unfunded />;
-  return <>{children}</>;
+  const [showFunding, setShowFunding] = useState(false);
+  const unfunded = CORE_MODE === 'real' && bal.isSuccess && bal.data === 0n;
+  if (unfunded && showFunding) return <Unfunded />;
+  return (
+    <View className="flex-1">
+      {unfunded && (
+        <View className="flex-row items-center gap-3 border-b border-border bg-muted px-4 py-2">
+          <Text variant="caption" className="flex-1">
+            {S.wallet.readOnlyBanner}
+          </Text>
+          <Button size="sm" onPress={() => setShowFunding(true)}>
+            <Text>{S.wallet.getFunds}</Text>
+          </Button>
+        </View>
+      )}
+      {children}
+    </View>
+  );
 }
 
 /** Wraps every screen that needs a wallet: no wallet -> create, unfunded -> faucet, ready -> children. */
