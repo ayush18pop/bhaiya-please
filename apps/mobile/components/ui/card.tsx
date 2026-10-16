@@ -5,7 +5,7 @@ import { View, type ViewProps } from 'react-native';
 function Card({ className, ...props }: ViewProps) {
   return (
     <TextClassContext.Provider value="text-card-foreground">
-      <View className={cn('flex flex-col gap-3 rounded-xl border border-border bg-card py-4 shadow-sm shadow-black/5', className)} {...props} />
+      <View className={cn('flex flex-col gap-3 rounded-card border border-border/70 bg-card py-4 shadow-card', className)} {...props} />
     </TextClassContext.Provider>
   );
 }

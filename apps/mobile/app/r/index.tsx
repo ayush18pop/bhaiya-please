@@ -80,7 +80,7 @@ export default function ResidentRuns() {
       />
 
       <View pointerEvents="box-none" className="absolute left-3 right-3 top-3 flex-row items-start justify-between gap-2">
-        <View className="flex-shrink flex-row items-center gap-2 rounded-2xl bg-card/95 px-3 py-2 shadow-md shadow-black/15">
+        <View className="flex-shrink flex-row items-center gap-2 rounded-2xl bg-card/95 px-3 py-2 shadow-lift">
           <View className="h-7 w-7 items-center justify-center rounded-full bg-primary">
             <Icon as={House} size={14} className="text-primary-foreground" />
           </View>

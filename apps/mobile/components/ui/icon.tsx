@@ -6,7 +6,7 @@ const seen = new WeakSet<object>();
 
 type IconProps = LucideProps & { as: LucideIcon; className?: string };
 
-/** Lucide icon that accepts Tailwind classes (e.g. text-primary). */
+/** Lucide icon that accepts Tailwind classes (e.g. text-primary-ink). */
 function Icon({ as: IconComponent, className, size = 16, ...props }: IconProps) {
   if (!seen.has(IconComponent)) {
     cssInterop(IconComponent, { className: { target: 'style', nativeStyleToProp: { color: true, opacity: true } } });

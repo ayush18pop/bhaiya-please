@@ -17,7 +17,7 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.TriggerProps) {
           'h-full flex-1 flex-row items-center justify-center rounded-md px-3',
           Platform.select({ web: 'cursor-pointer outline-none' }),
           props.disabled && 'opacity-50',
-          props.value === value && 'bg-card shadow-sm shadow-black/10',
+          props.value === value && 'bg-card shadow-card',
           className,
         )}
         {...props}

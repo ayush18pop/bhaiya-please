@@ -1,4 +1,5 @@
 import { View } from 'react-native';
+import { Pulse } from '@/components/Motion';
 import { Text } from '@/components/ui/text';
 import { useNow } from '@/hooks/useNow';
 import { liveness, useLastEventAt } from '@/lib/live';
@@ -11,13 +12,10 @@ export function LiveBadge({ dataUpdatedAt, isError = false, className }: { dataU
   const { live, ago } = liveness(dataUpdatedAt, isError, now * 1000, eventAt);
   return (
     <View
-      className={cn('flex-row items-center gap-1.5 rounded-full bg-card/95 px-2.5 py-1.5 shadow-sm shadow-black/15', className)}
+      className={cn('flex-row items-center gap-1.5 rounded-full border border-border/50 bg-card/95 px-3 py-1.5 shadow-lift', className)}
       accessibilityLabel={live ? 'Live' : 'Reconnecting'}>
-      <View className="h-2.5 w-2.5 items-center justify-center">
-        {live ? <View className="absolute h-2.5 w-2.5 animate-ping rounded-full bg-green-500/60" /> : null}
-        <View className={cn('h-2 w-2 rounded-full', live ? 'bg-green-600' : 'bg-slate-400')} />
-      </View>
-      <Text className={cn('text-[11px] font-extrabold tracking-wide', live ? 'text-green-700' : 'text-muted-foreground')}>
+      {live ? <Pulse size={10} color="#16a34a" /> : <View className="h-2 w-2 rounded-full bg-slate-400" />}
+      <Text className={cn('text-[11px] font-extrabold tracking-wide', live ? 'text-green-700 dark:text-green-400' : 'text-muted-foreground')}>
         {live ? 'LIVE' : 'Reconnecting…'}
       </Text>
       {ago !== null ? <Text className="text-[11px] font-semibold text-muted-foreground">· updated {ago}s ago</Text> : null}

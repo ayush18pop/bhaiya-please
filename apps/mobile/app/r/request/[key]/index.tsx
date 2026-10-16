@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { PartyPopper } from 'lucide-react-native';
 import { AliasChip } from '@/components/AliasChip';
 import { ArkivNote } from '@/components/ArkivNote';
+import { SuccessBurst } from '@/components/Motion';
 import { EmptyState, Page, SkeletonCards } from '@/components/Bits';
 import { LiveTracking } from '@/components/LiveTracking';
 import { Countdown } from '@/components/Countdown';
@@ -103,11 +104,9 @@ export default function RequestStatusScreen() {
 
       {s.stage === 'delivered' && (
         <Card className="gap-3 border-secondary bg-secondary/10 p-4">
-          <View className="flex-row items-center gap-2">
-            <Icon as={PartyPopper} size={22} className="text-secondary" />
-            <Text variant="h3">{S.request.delivered}</Text>
-          </View>
-          <Text>{fmt(S.request.deliveredBody, { who: aliasFor(s.delivery!.rider) })}</Text>
+          <SuccessBurst size={64} />
+          <Text variant="h3" className="text-center">{S.request.delivered}</Text>
+          <Text className="text-center">{fmt(S.request.deliveredBody, { who: aliasFor(s.delivery!.rider) })}</Text>
           <Button variant="secondary" size="lg" onPress={() => router.push(`/r/request/${key}/rate`)}>
             <Text>{S.request.rateIt}</Text>
           </Button>

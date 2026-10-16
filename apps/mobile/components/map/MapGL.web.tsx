@@ -22,7 +22,7 @@ const CSS = `
 @keyframes bp-pulse { 0% { transform: scale(.6); opacity: .55 } 100% { transform: scale(2.3); opacity: 0 } }
 .bp-pulse { position:absolute; inset:0; border-radius:9999px; animation: bp-pulse 1.8s ease-out infinite; pointer-events:none }
 .bp-marker { transition: opacity .6s ease, filter .6s ease; cursor: pointer; }
-.bp-chip { font: 700 11px/1.1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; white-space: nowrap; }
+.bp-chip { font: 700 11px/1.1 PlusJakartaSans_700Bold, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; white-space: nowrap; }
 .maplibregl-ctrl-attrib { font-size: 10px; }
 `;
 

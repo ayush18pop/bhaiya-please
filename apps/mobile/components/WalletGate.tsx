@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Linking, View } from 'react-native';
+import { SkeletonCards } from '@/components/Bits';
 import { Redirect } from 'expo-router';
 import { toast } from 'sonner-native';
 import { ArkivNote } from '@/components/ArkivNote';
@@ -142,9 +143,9 @@ export function WalletGate({ children }: { children: React.ReactNode }) {
     );
   if (!core)
     return (
-      <Centered>
-        <ActivityIndicator />
-      </Centered>
+      <Page>
+        <SkeletonCards n={2} />
+      </Page>
     );
   return <Funded>{children}</Funded>;
 }

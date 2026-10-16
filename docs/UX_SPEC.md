@@ -378,3 +378,11 @@ Supersedes principle 2's "No map" for these screens only; the map chunk (MapLibr
 - **Runner home `/u/run`** (active run): own position, gate, shops on route; card "Sharing live location · deletes itself in 2 min · only a ~150 m cell" with an on/off switch, last-sent time and cell; demo mode adds **Simulate route** (synthetic movement for judges on desktop). Sharing runs app-wide for the runner role (`PingBeacon`), every 20 s, coarsened on the device.
 - Live refresh: ping events invalidate only map queries; everything else still invalidates on any event; 5 s polling as backup.
 - Arkiv visible: "Live location deletes itself in 2 min" note (resident sheet) with explainer; positions are ~150 m cells and say so on the map.
+
+## Visual system
+
+- **Tokens** live in `apps/mobile/global.css` (HSL CSS variables, light + dark) and `tailwind.config.js`. Saffron `#e2591b` is `primary` (fills, CTAs); `primary-ink` is a darker saffron for small text on light surfaces; ink `#1a1d24` is text; teal `#0f766e` is `secondary` (trust, verified); `success` is green, `warning` amber, `destructive` red. Surfaces are warm off-white (`background`) with white `card`.
+- **Shape and depth**: cards `rounded-card` (20 px), sheets `rounded-sheet` (28 px), controls 12 px, chips and badges full. Shadows are single-layer so they render on web and Android: `shadow-card`, `shadow-lift`, `shadow-float`, `shadow-sheet`, `shadow-cta`.
+- **Type**: Plus Jakarta Sans (400 to 800) through `expo-font` (`lib/fonts.ts`). One family per weight; `Text` maps the `font-*` utility to it. Web paints in the system sans first (`font-display: swap`). Scale: `text-display` 34, `text-title` 22, `text-eta` 32, then the Tailwind defaults.
+- **Motion** (`components/Motion.tsx`, `components/ui/pressable-scale.tsx`): `Reveal` stagger for list rows, `PressScale` on buttons, tabs and selectable cards, `AnimatedNumber` for counts, `Shimmer` skeletons, `SuccessBurst` (check plus confetti-lite) on a completed handoff or receipt, `Pulse` on the LIVE dot. Everything honours the OS reduced-motion setting. Haptics (`lib/haptics.ts`) fire on buttons, tab changes, chip selection, sheet snaps and success; they are silent on web.
+- **Patterns**: sticky bottom CTA bar (`Page footer`), `ChipRow`/`Chip` filters, illustrated `EmptyState`, skeletons that mirror the real card layout.

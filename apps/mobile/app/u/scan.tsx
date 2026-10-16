@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2 } from 'lucide-react-native';
 import { toast } from 'sonner-native';
 import type { EntityKey, Hex } from '@bhaiya-please/core';
 import { ArkivNote } from '@/components/ArkivNote';
 import { EmptyState, Page } from '@/components/Bits';
+import { SuccessBurst } from '@/components/Motion';
 import { QrScanner } from '@/components/QrScanner';
 import { RequestSummary } from '@/components/RequestSummary';
 import { TxBanner } from '@/components/TxBanner';
@@ -73,10 +73,10 @@ export default function RunnerScan() {
   if (done)
     return (
       <Page className="items-center justify-center">
-        <View className="w-full items-center gap-3 rounded-2xl bg-secondary p-8">
-          <Icon as={CheckCircle2} size={56} className="text-secondary-foreground" />
-          <Text className="text-3xl font-extrabold text-secondary-foreground">{S.scan.done}</Text>
-          <Text className="text-secondary-foreground">{S.scan.doneBody}</Text>
+        <View className="w-full items-center gap-2 rounded-sheet border border-border/60 bg-card px-6 pb-8 pt-4 shadow-lift">
+          <SuccessBurst />
+          <Text className="text-center text-title font-extrabold">{S.scan.done}</Text>
+          <Text variant="muted" className="text-center">{S.scan.doneBody}</Text>
         </View>
         <Button
           variant="outline"

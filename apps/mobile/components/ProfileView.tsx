@@ -10,6 +10,7 @@ import { QrDisplay } from '@/components/QrDisplay';
 import { ReceiptCard } from '@/components/ReceiptCard';
 import { TierBadge } from '@/components/TierBadge';
 import { EmptyState, SkeletonCards } from '@/components/Bits';
+import { AnimatedNumber } from '@/components/Motion';
 import { useSession } from '@/components/providers';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,7 +38,7 @@ export function ProfileView({ address, isMe }: { address: Address; isMe?: boolea
   const [qr, setQr] = useState(false);
   const d = p.data;
 
-  if (!d) return <SkeletonCards n={2} />;
+  if (!d) return <SkeletonCards kind="profile" />;
   const receipts = (rc.data ?? []).filter((r) => r.valid).slice(0, 5);
   const viewerIsRunner = !!isMe && role === 'runner';
 
@@ -52,8 +53,17 @@ export function ProfileView({ address, isMe }: { address: Address; isMe?: boolea
         {d.receiptsTotal === 0 ? (
           <Text className="font-semibold">{S.profile.noHandoffs}</Text>
         ) : (
-          <View className="gap-0.5">
-            <Text className="text-xl font-extrabold">{`${d.receiptsTotal} handoff${d.receiptsTotal === 1 ? '' : 's'} from ${d.distinctResidents} resident${d.distinctResidents === 1 ? '' : 's'}`}</Text>
+          <View className="gap-2">
+            <View className="flex-row gap-3">
+              <View className="flex-1 rounded-2xl bg-accent px-3 py-2.5">
+                <AnimatedNumber value={d.receiptsTotal} className="text-3xl font-extrabold text-accent-foreground" />
+                <Text variant="caption" className="font-semibold">{`handoff${d.receiptsTotal === 1 ? '' : 's'}`}</Text>
+              </View>
+              <View className="flex-1 rounded-2xl bg-muted px-3 py-2.5">
+                <AnimatedNumber value={d.distinctResidents} className="text-3xl font-extrabold" />
+                <Text variant="caption" className="font-semibold">{`resident${d.distinctResidents === 1 ? '' : 's'}`}</Text>
+              </View>
+            </View>
             <Text variant="muted">{fmt(S.profile.last30, { n: d.receipts30d, m: d.distinctResidents30d })}</Text>
           </View>
         )}
@@ -95,7 +105,7 @@ export function ProfileView({ address, isMe }: { address: Address; isMe?: boolea
       <View className="gap-2">
         <Text variant="h3">{S.profile.receipts}</Text>
         {rc.isLoading && !rc.data ? (
-          <SkeletonCards n={1} />
+          <SkeletonCards n={1} kind="row" />
         ) : receipts.length === 0 ? (
           <EmptyState title={S.profile.noReceipts} />
         ) : (

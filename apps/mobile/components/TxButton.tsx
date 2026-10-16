@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Check } from 'lucide-react-native';
+import { haptic } from '@/lib/haptics';
 import { toast } from 'sonner-native';
 import { Button, type ButtonProps } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
@@ -33,7 +34,9 @@ export function TxButton<T>({ onTx, onDone, labels, toastDone, resetAfterMs, hid
 
   const onPress = async () => {
     const r = await run();
+    if (r === undefined) haptic.error();
     if (r !== undefined) {
+      haptic.success();
       if (toastDone) toast.success(toastDone);
       done.current?.(r);
     }

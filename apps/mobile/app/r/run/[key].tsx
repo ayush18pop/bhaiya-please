@@ -8,7 +8,10 @@ import { runnerPin, shopPins, zoneCenter } from '@/lib/mapModel';
 import { zoneByHash } from '@/lib/zones';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArkivNote } from '@/components/ArkivNote';
-import { EmptyState, Page, SkeletonCards } from '@/components/Bits';
+import { Chip, ChipRow, EmptyState, Page, SkeletonCards } from '@/components/Bits';
+import { Reveal } from '@/components/Motion';
+import { CATEGORY_ICON } from '@/components/map/icons';
+import { Store } from 'lucide-react-native';
 import { RunCard, runPhase } from '@/components/RunCard';
 import { ShopRow } from '@/components/ShopRow';
 import { Button } from '@/components/ui/button';
@@ -27,7 +30,7 @@ function RouteShopsMap({ run, shops, selected, onSelect }: { run: Run; shops: Sh
   const pin = runnerPin(run, pings.data?.[0], now, { tier: profile.data?.tier.name ?? null, focused: true });
   const pins = shopPins(shops, selected);
   return (
-    <View className="h-64 overflow-hidden rounded-2xl border border-border bg-card shadow-sm shadow-black/10">
+    <View className="h-64 overflow-hidden rounded-2xl border border-border bg-card shadow-card">
       <MapView
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         society={{ pos: gate, label: `${zoneByHash(run.destZone)?.society ?? 'Your'} gate` }}
@@ -54,10 +57,13 @@ export default function RunDetail() {
   const run = useRun(key);
   const shops = useShops(run.data?.fromZone.slice(0, 5));
   const [sel, setSel] = useState<string | null>(null);
+  const [cat, setCat] = useState<string | null>(null);
 
   const r = run.data;
   const ended = !!r && runPhase(r, now) === 'ended';
-  const list = shops.data ?? [];
+  const all = shops.data ?? [];
+  const cats = [...new Set(all.map((x) => x.category))];
+  const list = cat ? all.filter((x) => x.category === cat) : all;
   const chosen = list.find((s) => s.key === sel) ?? null;
 
   if (!r && !run.isLoading)
@@ -84,14 +90,24 @@ export default function RunDetail() {
       {r ? <RouteShopsMap run={r} shops={list} selected={sel} onSelect={setSel} /> : null}
       {r ? <RunCard run={r} showFrom={false} /> : <SkeletonCards n={1} />}
       <Text variant="h3">{S.shops.title}</Text>
+      {cats.length > 1 ? (
+        <ChipRow>
+          <Chip label="All" icon={Store} selected={!cat} onPress={() => setCat(null)} />
+          {cats.map((c) => (
+            <Chip key={c} label={c.replace('_', ' ')} icon={CATEGORY_ICON[c]} selected={cat === c} onPress={() => setCat(c)} />
+          ))}
+        </ChipRow>
+      ) : null}
       {shops.isLoading && !shops.data ? (
         <SkeletonCards />
       ) : list.length === 0 ? (
-        <EmptyState title={S.shops.empty} />
+        <EmptyState title={S.shops.empty} icon={Store} />
       ) : (
         <View className="gap-3">
-          {list.map((s) => (
-            <ShopRow key={s.key} shop={s} selected={s.key === sel} onSelect={() => setSel(s.key)} />
+          {list.map((s, i) => (
+            <Reveal key={s.key} index={i}>
+              <ShopRow shop={s} selected={s.key === sel} onSelect={() => setSel(s.key)} />
+            </Reveal>
           ))}
         </View>
       )}

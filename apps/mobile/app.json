@@ -38,7 +38,11 @@
         {
           "locationWhenInUsePermission": "While your run is active, your phone shares a rough ~150 m area that deletes itself after 2 minutes. Exact location never leaves the phone."
         }
-      ]
+      ],
+      "expo-image",
+      "expo-font",
+      ["expo-splash-screen", { "image": "./assets/splash-icon.png", "imageWidth": 180, "backgroundColor": "#e2591b", "dark": { "image": "./assets/splash-icon.png", "backgroundColor": "#12141a" } }],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": false

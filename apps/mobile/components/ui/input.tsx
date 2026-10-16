@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { fontStyleFor } from '@/lib/fonts';
 import { Platform, TextInput, type TextInputProps } from 'react-native';
 
 function Input({ className, editable, ...props }: TextInputProps) {
@@ -13,6 +14,7 @@ function Input({ className, editable, ...props }: TextInputProps) {
       placeholderTextColor="#8a8f98"
       editable={editable}
       {...props}
+      style={[fontStyleFor('font-medium'), props.style]}
     />
   );
 }

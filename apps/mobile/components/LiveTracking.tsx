@@ -25,7 +25,7 @@ export function LiveTracking({ run, height = 300 }: { run: Run; height?: number 
   const age = ping ? pingAge(ping, now) : null;
 
   return (
-    <View className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm shadow-black/10" style={{ height }}>
+    <View className="overflow-hidden rounded-2xl border border-border bg-card shadow-card" style={{ height }}>
       <MapView
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         society={{ pos: gate, label: `${society} gate` }}
@@ -36,13 +36,13 @@ export function LiveTracking({ run, height = 300 }: { run: Run; height?: number 
         padding={{ top: 70, bottom: 60, left: 40, right: 40 }}
       />
       <View pointerEvents="none" className="absolute left-3 right-3 top-3 flex-row items-start justify-between gap-2">
-        <View className="rounded-2xl bg-card/95 px-3 py-2 shadow-md shadow-black/15">
+        <View className="rounded-2xl bg-card/95 px-3 py-2 shadow-lift">
           <Text className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Arriving in</Text>
-          <Countdown to={run.eta} endLabel="At the gate" className="text-xl font-extrabold text-primary" />
+          <Countdown to={run.eta} endLabel="At the gate" className="text-xl font-extrabold text-primary-ink" />
         </View>
         <LiveBadge dataUpdatedAt={pings.dataUpdatedAt} isError={pings.isError} />
       </View>
-      <View pointerEvents="none" className="absolute bottom-3 left-3 right-3 flex-row items-center gap-2 rounded-xl bg-card/95 px-3 py-2 shadow-md shadow-black/15">
+      <View pointerEvents="none" className="absolute bottom-3 left-3 right-3 flex-row items-center gap-2 rounded-xl bg-card/95 px-3 py-2 shadow-lift">
         <Icon as={Navigation} size={14} className={pin?.freshness === 'live' ? 'text-green-600' : 'text-muted-foreground'} />
         <Text className="flex-1 text-xs font-semibold" numberOfLines={1}>
           {age === null

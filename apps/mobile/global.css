@@ -11,7 +11,8 @@
     --card-foreground: 222 17% 12%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 17% 12%;
-    --primary: 18 84% 44%;
+    --primary: 18 79% 50%; /* #e2591b brand saffron (fills, CTAs) */
+    --primary-ink: 18 84% 40%; /* saffron for small text on light surfaces (AA) */
     --primary-foreground: 0 0% 100%;
     --secondary: 175 77% 26%;
     --secondary-foreground: 0 0% 100%;
@@ -21,13 +22,13 @@
     --accent-foreground: 18 84% 28%;
     --destructive: 0 72% 42%;
     --destructive-foreground: 0 0% 100%;
-    --success: 175 77% 26%;
+    --success: 152 62% 28%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 88%;
     --warning-foreground: 30 80% 22%;
     --border: 35 18% 84%;
     --input: 35 18% 80%;
-    --ring: 18 84% 44%;
+    --ring: 18 79% 50%;
     --radius: 0.75rem;
   }
 
@@ -39,6 +40,7 @@
     --popover: 222 16% 12%;
     --popover-foreground: 36 30% 94%;
     --primary: 18 85% 55%;
+    --primary-ink: 18 90% 66%;
     --primary-foreground: 222 18% 8%;
     --secondary: 173 60% 38%;
     --secondary-foreground: 222 18% 8%;
@@ -48,7 +50,7 @@
     --accent-foreground: 24 90% 85%;
     --destructive: 0 75% 62%;
     --destructive-foreground: 222 18% 8%;
-    --success: 173 60% 40%;
+    --success: 148 55% 40%;
     --success-foreground: 222 18% 8%;
     --warning: 38 60% 20%;
     --warning-foreground: 38 92% 82%;
@@ -57,3 +59,7 @@
     --ring: 18 85% 55%;
   }
 }
+
+/* Paint the brand background before JS loads (no white flash on web), light or dark. */
+html, body { background-color: #efece6; }
+@media (prefers-color-scheme: dark) { html, body { background-color: #0d0f14; } }

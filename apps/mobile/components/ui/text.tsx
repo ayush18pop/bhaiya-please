@@ -3,6 +3,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import * as React from 'react';
 import { Platform, Text as RNText, type Role } from 'react-native';
 import { cn } from '@/lib/utils';
+import { fontStyleFor } from '@/lib/fonts';
 
 const textVariants = cva(
   cn('text-base text-foreground', Platform.select({ web: 'select-text' })),
@@ -40,12 +41,15 @@ function Text({
 }: React.ComponentProps<typeof RNText> & TextVariantProps & { asChild?: boolean }) {
   const textClass = React.useContext(TextClassContext);
   const Component = asChild ? Slot.Text : RNText;
+  const cls = cn(textVariants({ variant }), textClass, className);
+  const isMono = /(?:^|\s)font-mono(?=\s|$)/.test(cls);
   return (
     <Component
-      className={cn(textVariants({ variant }), textClass, className)}
+      className={cls}
       role={variant ? ROLE[variant] : undefined}
       aria-level={variant ? ARIA_LEVEL[variant] : undefined}
       {...props}
+      style={[isMono ? null : fontStyleFor(cls), props.style]}
     />
   );
 }

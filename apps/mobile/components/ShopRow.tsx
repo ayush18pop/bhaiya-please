@@ -1,4 +1,8 @@
-import { Pressable, View } from 'react-native';
+import { memo } from 'react';
+import { View } from 'react-native';
+import { PressScale } from '@/components/ui/pressable-scale';
+import { haptic } from '@/lib/haptics';
+import { CATEGORY_ICON } from '@/components/map/icons';
 import { AlertTriangle, Check, Store } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Shop } from '@bhaiya-please/core';
@@ -25,24 +29,24 @@ export function ExpiryLabel({ expiresAt }: { expiresAt: number }) {
 }
 
 /** Owns its own "Still open ✓" tx: extends the shop's life for everyone (permissionless extension). */
-export function ShopRow({ shop, selected, onSelect }: { shop: Shop; selected: boolean; onSelect: () => void }) {
+export const ShopRow = memo(function ShopRow({ shop, selected, onSelect }: { shop: Shop; selected: boolean; onSelect: () => void }) {
   const core = useCore();
   const qc = useQueryClient();
   return (
-    <View className={cn('gap-2 rounded-xl border-2 bg-card p-3', selected ? 'border-primary' : 'border-border')}>
-      <Pressable onPress={onSelect} accessibilityRole="radio" accessibilityState={{ checked: selected }} className="flex-row items-center gap-3">
+    <View className={cn('gap-2 rounded-card border-2 bg-card p-3.5 shadow-card', selected ? 'border-primary bg-accent/40' : 'border-border/70')}>
+      <PressScale scaleTo={0.985} onPress={() => { haptic.select(); onSelect(); }} accessibilityRole="radio" accessibilityState={{ checked: selected }} className="flex-row items-center gap-3">
         <View className={cn('h-6 w-6 items-center justify-center rounded-full border-2', selected ? 'border-primary bg-primary' : 'border-input')}>
           {selected && <Icon as={Check} size={14} className="text-primary-foreground" />}
         </View>
         <View className="flex-1 gap-0.5">
           <View className="flex-row items-center gap-1.5">
-            <Icon as={Store} size={14} className="text-muted-foreground" />
+            <Icon as={CATEGORY_ICON[shop.category] ?? Store} size={14} className="text-muted-foreground" />
             <Text className="font-bold">{shop.nameTag}</Text>
             <Text variant="caption">{shop.category.replace('_', ' ')}</Text>
           </View>
           <ExpiryLabel expiresAt={shop.expiresAt} />
         </View>
-      </Pressable>
+      </PressScale>
       <View className="flex-row items-center justify-between gap-2">
         <Text variant="caption" className="flex-1">{S.shops.confirmedBy}</Text>
         <View className="min-w-36">
@@ -58,4 +62,4 @@ export function ShopRow({ shop, selected, onSelect }: { shop: Shop; selected: bo
       </View>
     </View>
   );
-}
+});

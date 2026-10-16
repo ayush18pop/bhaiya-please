@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
-import { ExternalLink, FlaskConical, Home, Moon, ScanLine, Sun, User, ListChecks, Inbox, Truck, BadgeCheck, WifiOff } from 'lucide-react-native';
+import { ExternalLink, ShoppingBag, FlaskConical, Home, Moon, ScanLine, Sun, User, ListChecks, Inbox, Truck, BadgeCheck, WifiOff } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import { toast } from 'sonner-native';
 import type { LucideIcon } from 'lucide-react-native';
 import { useCore, useSession } from '@/components/providers';
 import { PingBeacon } from '@/components/PingBeacon';
 import { Icon } from '@/components/ui/icon';
+import { PressScale } from '@/components/ui/pressable-scale';
+import { haptic } from '@/lib/haptics';
 import { Text } from '@/components/ui/text';
 import { useProfile, useBalance } from '@/hooks/queries';
 import { aliasFor } from '@/lib/alias';
@@ -71,7 +73,7 @@ function RoleSwitch({ compact }: { compact?: boolean }) {
   const router = useRouter();
   const roles = ROLES.filter((r) => r !== 'verifier' || verifierVisible);
   return (
-    <View className="flex-row gap-1 rounded-lg bg-muted p-1" accessibilityRole="tablist">
+    <View className="flex-row gap-1 rounded-xl bg-muted p-1" accessibilityRole="tablist">
       {roles.map((r) => {
         const active = r === role;
         return (
@@ -83,7 +85,7 @@ function RoleSwitch({ compact }: { compact?: boolean }) {
               setRole(r);
               router.replace(HOME[r] as never);
             }}
-            className={cn('flex-1 items-center rounded-md px-2 py-1.5', active && 'bg-card shadow-sm shadow-black/10')}>
+            className={cn('flex-1 items-center rounded-lg px-2 py-1.5', active && 'bg-card shadow-card')}>
             <Text className={cn('text-sm font-bold', active ? 'text-foreground' : 'text-muted-foreground')}>{S.roles[r]}</Text>
             {!compact && wallets[r] ? <Text variant="caption" numberOfLines={1}>{aliasFor(wallets[r]!.address)}</Text> : null}
           </Pressable>
@@ -142,14 +144,25 @@ function BottomTabs() {
   const router = useRouter();
   if (!role) return null;
   return (
-    <View className="flex-row border-t border-border bg-card" accessibilityRole="tablist">
+    <View className="flex-row border-t border-border/70 bg-card px-2 pb-1 pt-1.5 shadow-sheet" accessibilityRole="tablist">
       {TABS[role].map((t) => {
         const active = t.match(path);
         return (
-          <Pressable key={t.href} onPress={() => router.replace(t.href as never)} accessibilityRole="tab" accessibilityState={{ selected: active }} className="min-h-14 flex-1 items-center justify-center gap-0.5 py-1.5">
-            <Icon as={t.icon} size={22} className={active ? 'text-primary' : 'text-muted-foreground'} />
-            <Text className={cn('text-xs', active ? 'font-bold text-primary' : 'text-muted-foreground')}>{t.label}</Text>
-          </Pressable>
+          <PressScale
+            key={t.href}
+            scaleTo={0.92}
+            onPress={() => {
+              if (!active) haptic.select();
+              router.replace(t.href as never);
+            }}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            className="min-h-14 flex-1 items-center justify-center gap-0.5 py-1">
+            <View className={cn('h-8 w-16 items-center justify-center rounded-full', active ? 'bg-accent' : 'bg-transparent')}>
+              <Icon as={t.icon} size={22} strokeWidth={active ? 2.5 : 2} className={active ? 'text-primary-ink' : 'text-muted-foreground'} />
+            </View>
+            <Text className={cn('text-[11px]', active ? 'font-extrabold text-primary-ink' : 'font-semibold text-muted-foreground')}>{t.label}</Text>
+          </PressScale>
         );
       })}
     </View>
@@ -195,8 +208,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <View className="flex-1 items-center bg-muted">
       <View className="w-full max-w-[430px] flex-1 bg-background md:border-x md:border-border">
-        <View className="flex-row items-center justify-between border-b border-border bg-card px-4 py-2">
-          <Text className="text-lg font-extrabold text-primary">{S.app.name}</Text>
+        <View className="flex-row items-center justify-between border-b border-border/70 bg-card px-4 py-2 shadow-card">
+          <View className="flex-row items-center gap-2">
+            <View className="h-8 w-8 items-center justify-center rounded-[10px] bg-primary shadow-cta">
+              <Icon as={ShoppingBag} size={18} strokeWidth={2.4} className="text-white" />
+            </View>
+            <Text className="text-lg font-extrabold tracking-tight">{S.app.name}</Text>
+          </View>
           <View className="flex-row items-center">
             {!demo && role && !isPublic ? <View className="w-52"><RoleSwitch compact /></View> : null}
             <ThemeToggle />

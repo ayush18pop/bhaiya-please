@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ThumbsUp } from 'lucide-react-native';
 import type { ComplaintReason, ReceiptTag } from '@bhaiya-please/core';
 import { ArkivNote } from '@/components/ArkivNote';
+import { SuccessBurst } from '@/components/Motion';
 import { EmptyState, Page, SkeletonCards } from '@/components/Bits';
 import { ComplaintRow } from '@/components/ComplaintRow';
 import { ReceiptCard } from '@/components/ReceiptCard';
@@ -17,6 +18,7 @@ import { Text } from '@/components/ui/text';
 import { useRequestStatus } from '@/hooks/queries';
 import { aliasFor } from '@/lib/alias';
 import { fmt } from '@/lib/format';
+import { haptic } from '@/lib/haptics';
 import { S } from '@/lib/strings';
 import { cn } from '@/lib/utils';
 
@@ -25,7 +27,7 @@ const REASONS: ComplaintReason[] = ['no_show', 'wrong_item', 'rude'];
 
 function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="checkbox" accessibilityState={{ checked: on }} className={cn('min-h-10 justify-center rounded-full border-2 px-4', on ? 'border-primary bg-accent' : 'border-border bg-card')}>
+    <Pressable onPress={() => { haptic.select(); onPress(); }} accessibilityRole="checkbox" accessibilityState={{ checked: on }} className={cn('min-h-10 justify-center rounded-full border-2 px-4', on ? 'border-primary bg-accent' : 'border-border bg-card')}>
       <Text className={cn('text-sm font-semibold', on && 'text-accent-foreground')}>{label}</Text>
     </Pressable>
   );
@@ -56,7 +58,8 @@ export default function Rate() {
       <Page footer={<Button size="lg" variant="outline" onPress={() => router.replace('/r')}><Text>{S.runs.title}</Text></Button>}>
         {s.receipt ? (
           <>
-            <Text variant="h2">{S.rate.receiptDone}</Text>
+            <SuccessBurst size={76} />
+            <Text variant="h2" className="text-center">{S.rate.receiptDone}</Text>
             <ReceiptCard receipt={s.receipt} />
             <ArkivNote text={S.arkiv.receipt} explainer="A receipt is a record created by you and handed to the runner in one atomic step. It is marked readonly, so neither of you can change it later. The runner owns it, so it moves with them to any app." title="Why the runner owns it" />
           </>

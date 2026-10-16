@@ -51,8 +51,8 @@ export function OnChainProof({ entityKey }: { entityKey: EntityKey }) {
               ))}
               {d.explorerUrl ? (
                 <Pressable onPress={() => Linking.openURL(d.explorerUrl!)} className="mt-1 flex-row items-center gap-1">
-                  <Text variant="caption" className="font-semibold text-primary underline">{S.common.explorer}</Text>
-                  <Icon as={ExternalLink} size={12} className="text-primary" />
+                  <Text variant="caption" className="font-semibold text-primary-ink underline">{S.common.explorer}</Text>
+                  <Icon as={ExternalLink} size={12} className="text-primary-ink" />
                 </Pressable>
               ) : null}
             </>

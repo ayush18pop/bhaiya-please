@@ -32,7 +32,7 @@ export function RunnerLiveMap({ run }: { run: Run }) {
   }
   const pins = shopPins(shops.data ?? []);
   return (
-    <View className="h-80 overflow-hidden rounded-2xl border border-border bg-card shadow-sm shadow-black/10">
+    <View className="h-80 overflow-hidden rounded-2xl border border-border bg-card shadow-card">
       <MapView
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         society={{ pos: gate, label: `${zoneByHash(run.destZone)?.society ?? 'Destination'} gate` }}
@@ -69,7 +69,7 @@ export function SharingCard({ demo }: { demo: boolean }) {
               ? 'Finding your position…'
               : `Last sent ${age}s ago · cell ${s.lastGh7} · every ${PING_RULES.intervalSeconds}s`;
   return (
-    <View className="gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm shadow-black/5">
+    <View className="gap-3 rounded-2xl border border-border bg-card p-4 shadow-card">
       <View className="flex-row items-center gap-3">
         <View className={cn('h-10 w-10 items-center justify-center rounded-full', on ? 'bg-green-600/15' : 'bg-muted')}>
           <Icon as={s.enabled ? Radio : MapPinOff} size={20} className={on ? 'text-green-700' : 'text-muted-foreground'} />
@@ -78,7 +78,7 @@ export function SharingCard({ demo }: { demo: boolean }) {
           <Text className="font-bold">{s.enabled ? 'Sharing live location' : 'Live location off'}</Text>
           <Text variant="caption">Deletes itself in 2 min · only a ~150 m cell</Text>
         </View>
-        <Switch value={s.enabled} onValueChange={(v) => setSharing({ enabled: v })} accessibilityLabel="Share live location" trackColor={{ true: '#e2591b', false: '#cbd5e1' }} thumbColor="#ffffff" />
+        <Switch value={s.enabled} onValueChange={(v) => setSharing({ enabled: v })} accessibilityLabel="Share live location" trackColor={{ true: '#e2591b', false: '#cbd5e1' }} thumbColor="#ffffff" {...({ activeThumbColor: "#ffffff" } as object)} />
       </View>
       <Text variant="caption" className={cn(s.status === 'error' || s.status === 'denied' ? 'text-destructive' : '')}>{sub}</Text>
       {(
@@ -88,7 +88,7 @@ export function SharingCard({ demo }: { demo: boolean }) {
             <Text className="text-sm font-semibold">Simulated route</Text>
             <Text variant="caption">{s.simulate ? 'On: a synthetic Whitefield route. Your real location never leaves the phone.' : 'Off: your real position, coarsened to ~150 m, is written publicly to Arkiv.'}</Text>
           </View>
-          <Switch value={s.simulate} onValueChange={(v) => setSharing({ simulate: v })} accessibilityLabel="Simulate route" trackColor={{ true: '#e2591b', false: '#cbd5e1' }} thumbColor="#ffffff" />
+          <Switch value={s.simulate} onValueChange={(v) => setSharing({ simulate: v })} accessibilityLabel="Simulate route" trackColor={{ true: '#e2591b', false: '#cbd5e1' }} thumbColor="#ffffff" {...({ activeThumbColor: "#ffffff" } as object)} />
         </View>
       )}
     </View>

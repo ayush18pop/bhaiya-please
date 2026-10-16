@@ -4,7 +4,7 @@ import * as Slot from '@rn-primitives/slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { View, type ViewProps } from 'react-native';
 
-const badgeVariants = cva('flex-row items-center gap-1 rounded-md border border-transparent px-2 py-1', {
+const badgeVariants = cva('flex-row items-center gap-1 rounded-full border border-transparent px-2.5 py-1', {
   variants: {
     variant: {
       default: 'bg-primary',
