@@ -5,6 +5,8 @@
  *   - serialized write queue (one in-flight tx per wallet) + viem nonceManager
  *   - bounded retry with backoff on transport / rate-limit errors only; never after broadcast,
  *     never on engine rejections
+ *   - access key sent as the X-API-KEY header (never in the URL, so it cannot leak through
+ *     error messages that echo the request URL); paginated walks pinned to one block
  *   - every error leaves as BhaiyaPleaseError
  */
 import { createPublicClient, createWalletClient, ExpirationTime } from '@arkiv-network/sdk';
@@ -43,10 +45,23 @@ const READ_ATTEMPTS = 3;
 const WRITE_ATTEMPTS = 3;
 const TIMING_TTL_MS = 30_000;
 
-/** Access key appended as a path segment: "<rpc>/<KEY>". [verify on chain] format + browser CORS. */
+/**
+ * Access key appended as a path segment: "<rpc>/<KEY>". Works on Tiramisu (spike, 16 Oct), but the
+ * adapter uses the X-API-KEY header instead (see rpcTransport). Kept for scripts/tests.
+ */
 export function rpcUrlWithKey(rpcUrl: string, accessKey?: string): string {
   const base = rpcUrl.replace(/\/+$/, '');
   return accessKey ? `${base}/${encodeURIComponent(accessKey)}` : base;
+}
+
+/**
+ * HTTP transport with the access key in the X-API-KEY header (verified 16 Oct: 200 with key, 401
+ * INVALID_KEY with a wrong key; CORS preflight allows X-Api-Key from any origin). Header rather
+ * than URL path because viem error messages print the request URL.
+ */
+export function rpcTransport(rpcUrl: string, accessKey?: string) {
+  const base = rpcUrl.replace(/\/+$/, '');
+  return accessKey ? http(base, { fetchOptions: { headers: { 'X-API-KEY': accessKey } } }) : http(base);
 }
 
 const lowerHex = <T extends Hex>(v: string): T => v.toLowerCase() as T;
@@ -116,9 +131,9 @@ interface Timing {
 }
 
 export async function createArkivAdapter(config: BhaiyaPleaseConfig): Promise<ArkivPort> {
-  const url = rpcUrlWithKey(config.rpcUrl || DEFAULT_RPC_URL, config.accessKey);
+  const transport = () => rpcTransport(config.rpcUrl || DEFAULT_RPC_URL, config.accessKey);
   const chain: Chain = config.chainId && config.chainId !== tiramisu.id ? { ...tiramisu, id: config.chainId } : tiramisu;
-  const pub = createPublicClient({ chain, transport: http(url) });
+  const pub = createPublicClient({ chain, transport: transport() });
   const report = (op: string, err: unknown) => config.onSdkError?.(op, err);
 
   async function retryRead<T>(op: string, fn: () => Promise<T>): Promise<T> {
@@ -178,18 +193,46 @@ export async function createArkivAdapter(config: BhaiyaPleaseConfig): Promise<Ar
     };
   }
 
+  const isCursorError = (err: unknown) =>
+    !!err && typeof err === 'object' && (err as { name?: unknown; kind?: unknown }).name === 'QueryError' &&
+    (err as { kind?: unknown }).kind === 'cursor';
+
   async function runQuery(q: QueryAst, atBlock?: bigint): Promise<RawEntity[]> {
     if (q.where.length === 0) throw new BhaiyaPleaseError('INVALID_INPUT', 'query needs at least one predicate');
-    const builder = pub.select('*').where(q.where.map(toExpr)).limit(200);
-    if (q.owner) builder.ownedBy(q.owner);
-    if (q.creator) builder.createdBy(q.creator);
-    if (atBlock !== undefined) builder.atBlock(atBlock);
-    let page = await retryRead('query', () => builder.fetch());
-    const rows: FullEntity[] = [...page.entities];
-    while (page.hasNextPage() && rows.length < MAX_QUERY_RESULTS) {
-      const current = page;
-      page = await retryRead('query.next', () => current.next());
-      rows.push(...page.entities);
+    const build = (block?: bigint) => {
+      const b = pub.select('*').where(q.where.map(toExpr)).limit(200);
+      if (q.owner) b.ownedBy(q.owner);
+      if (q.creator) b.createdBy(q.creator);
+      if (block !== undefined) b.atBlock(block);
+      return b;
+    };
+    let page = await retryRead('query', () => build(atBlock).fetch());
+    // Single page (the common case): done. Otherwise walk every page at ONE block: an unpinned
+    // cursor can be rejected (-32005) once the head moves, and mixing blocks gives an inconsistent set.
+    let pinned = atBlock;
+    let rows: FullEntity[] = [...page.entities];
+    for (let restarts = 0; page.hasNextPage() && rows.length < MAX_QUERY_RESULTS; ) {
+      try {
+        if (pinned === undefined) {
+          pinned = page.blockNumber;
+          page = await retryRead('query', () => build(pinned).fetch());
+          rows = [...page.entities];
+          continue;
+        }
+        const current = page;
+        page = await retryRead('query.next', () => current.next());
+        rows.push(...page.entities);
+      } catch (err) {
+        // Cursor expired: discard the partial walk and restart once at a fresh head (current-state
+        // reads only; a historical read keeps its block and surfaces the error).
+        if (!isCursorError((err as { cause?: unknown }).cause ?? err) || atBlock !== undefined || restarts++ > 0) throw err;
+        pinned = undefined;
+        page = await retryRead('query', () => build().fetch());
+        rows = [...page.entities];
+      }
+    }
+    if (page.hasNextPage()) {
+      report('query', new Error(`query truncated at ${rows.length} results (cap ${MAX_QUERY_RESULTS}); result is incomplete`));
     }
     const t = await getTiming();
     return rows.map((e) => toRaw(e, t));
@@ -201,7 +244,7 @@ export async function createArkivAdapter(config: BhaiyaPleaseConfig): Promise<Ar
     return rows[0] ?? null;
   }
 
-  const wallet = await createWallet(config, chain, url);
+  const wallet = await createWallet(config, chain, transport);
   const address = wallet ? lowerHex<Address>(wallet.account.address) : null;
   const queue = createWriteQueue();
 
@@ -308,12 +351,12 @@ export async function createArkivAdapter(config: BhaiyaPleaseConfig): Promise<Ar
 
 type ChainLike = Chain;
 
-async function createWallet(config: BhaiyaPleaseConfig, chain: ChainLike, url: string) {
+async function createWallet(config: BhaiyaPleaseConfig, chain: ChainLike, transport: () => ReturnType<typeof http>) {
   const signer = config.signer;
   if (signer.kind === 'none') return null;
   if (signer.kind === 'privateKey') {
     const account = privateKeyToAccount(signer.privateKey, { nonceManager });
-    return createWalletClient({ chain, transport: http(url), account }) as WalletArkivClient<
+    return createWalletClient({ chain, transport: transport(), account }) as WalletArkivClient<
       ReturnType<typeof http>,
       ChainLike,
       typeof account

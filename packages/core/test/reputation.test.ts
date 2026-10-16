@@ -189,10 +189,65 @@ describe('complaints', () => {
     const shop = await listShop(w, resident);
     const run = await w.as(runner).announceRun({ destZone: HOME, fromZone: NORTH, etaMinutes: 30, capacity: 1 });
     const req = await w.as(resident).postRequest({ runKey: run.key, shopKey: shop, items: ['Milk'], maxPrice: 50, tip: 0 });
-    await w.as(resident).fileComplaint({ requestKey: req.key, rider: runner, reason: 'no_show' });
+    // No delivery yet: no on-chain evidence the runner served this request.
+    await expect(w.as(resident).fileComplaint({ requestKey: req.key, rider: runner, reason: 'no_show' })).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+    });
+    await w.as(runner).acceptRequest(req.key);
+    await w.as(runner).recordDelivery({ secret: req.secret });
+    await w.as(resident).fileComplaint({ requestKey: req.key, rider: runner, reason: 'wrong_item' });
     w.chain.advance(100 * DAY);
     expect(await w.as(stranger).getComplaintsAgainst(runner)).toHaveLength(1);
     expect(await w.as(stranger).getComplaintsAgainst(runner, w.chain.now() - DAY)).toHaveLength(0);
+  });
+
+  it('a resident cannot complain about a rider who never delivered their request (drive-by with own request)', async () => {
+    const w = makeWorld();
+    const shop = await listShop(w, resident);
+    // The attacker's own request, on some other runner's run.
+    const other = addr('other-runner');
+    const run = await w.as(other).announceRun({ destZone: HOME, fromZone: NORTH, etaMinutes: 30, capacity: 1 });
+    const req = await w.as(stranger).postRequest({ runKey: run.key, shopKey: shop, items: ['Milk'], maxPrice: 50, tip: 0 });
+    await expect(w.as(stranger).fileComplaint({ requestKey: req.key, rider: runner, reason: 'rude' })).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+    });
+    // Raw complaints (bypassing the service) are ignored by every viewer.
+    for (const reason of ['rude', 'no_show', 'wrong_item'] as const) {
+      await w.raw(stranger, (x) => x.create(createSpec(encode.complaint(P, { rider: runner, request: req.key, reason, at: 1 }), 180 * DAY)));
+    }
+    expect(await w.as(resident).getComplaintsAgainst(runner)).toHaveLength(0);
+    expect((await w.as(resident).getProfile(runner)).complaints30d).toBe(0);
+  });
+});
+
+describe('readonly enforcement', () => {
+  it('a receipt created without the readonly flag is not counted', async () => {
+    const w = makeWorld();
+    const shop = await listShop(w, resident);
+    const h = await handoff(w, runner, resident, shop);
+    // Second request + delivery so the mutable receipt is not just a duplicate.
+    const h2run = await w.as(runner).announceRun({ destZone: HOME, fromZone: NORTH, etaMinutes: 30, capacity: 1 });
+    const req = await w.as(resident).postRequest({ runKey: h2run.key, shopKey: shop, items: ['Eggs'], maxPrice: 50, tip: 0 });
+    await w.as(runner).acceptRequest(req.key);
+    const d = await w.as(runner).recordDelivery({ secret: req.secret });
+    const mutable = await w.raw(resident, async (x) => {
+      const [p] = await x.predictKeys(1);
+      const spec = { ...createSpec(encode.receipt(P, { rider: runner, delivery: d.key, zone: HOME, at: 1, tags: [] }), 365 * DAY), readonly: false };
+      return (await x.batch({ creates: [{ ...spec, salt: p!.salt }], transfers: [{ key: p!.key, to: runner }] })).created[0]!;
+    });
+    const list = await w.as(stranger).getReceiptsFor(runner);
+    expect(list.find((r) => r.receipt.key === mutable)).toMatchObject({ valid: false, reason: 'not_readonly' });
+    expect(list.find((r) => r.receipt.key === h.receipt)).toMatchObject({ valid: true });
+  });
+
+  it('a mutable attestation from a trusted verifier does not verify', async () => {
+    const w = makeWorld();
+    await w.raw(w.verifier, (x) =>
+      x.create({ ...createSpec(encode.attestation(P, { subject: runner, level: 'id_checked', at: 1 }), 180 * DAY), readonly: false }),
+    );
+    const p = await w.as(stranger).getProfile(runner);
+    expect(p.attestations[0]!.trusted).toBe(false);
+    expect(p.verified).toBe(false);
   });
 });
 

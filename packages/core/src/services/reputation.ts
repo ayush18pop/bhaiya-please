@@ -33,13 +33,15 @@ export function verifyDeliveryData(delivery: Delivery, request: Request | null):
     return { valid: false, reason: 'reveal_mismatch', delivery, request };
   }
   if (!sameAddr(delivery.creator, delivery.rider)) return { valid: false, reason: 'rider_mismatch', delivery, request };
+  // The commit and the reveal are only evidence if nobody could have edited them after the fact.
+  if (!delivery.readonly || !request.readonly) return { valid: false, reason: 'not_readonly', delivery, request };
   return { valid: true, delivery, request };
 }
 
 /**
  * Receipt validity (ARCHITECTURE §3 step 3): delivery exists ∧ reveal verifies ∧
  * delivery.$creator == delivery.rider == receipt.rider ∧ request.$creator == receipt.$creator ∧
- * receipt.$creator ≠ receipt.rider.
+ * receipt.$creator ≠ receipt.rider ∧ receipt, delivery and request were all created readonly.
  */
 export function verifyReceiptData(
   receipt: Receipt,
@@ -53,6 +55,8 @@ export function verifyReceiptData(
   if (!sameAddr(delivery.rider, receipt.rider)) return bad('rider_mismatch');
   if (!request || !sameAddr(request.creator, receipt.creator)) return bad('creator_not_requester');
   if (sameAddr(receipt.creator, receipt.rider)) return bad('self_dealing');
+  // A mutable receipt owned by the runner could be re-pointed by the runner (owner may patch).
+  if (!receipt.readonly) return bad('not_readonly');
   return { receipt, valid: true };
 }
 

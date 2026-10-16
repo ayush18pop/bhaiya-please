@@ -12,7 +12,7 @@ const issueSchema = z
   .object({ subject: addressSchema, level: attestationLevelSchema, prev: addressSchema.optional() })
   .refine((i) => (i.level === 'successor') === (i.prev !== undefined), 'prev is required iff level is successor');
 
-/** Attestations about `subject`, newest first, each marked trusted iff $creator ∈ trusted list. */
+/** Attestations about `subject`, newest first, each marked trusted iff readonly and $creator ∈ trusted list. */
 export async function listAttestationsFor(
   rd: Reader,
   trusted: ReadonlySet<Address>,
@@ -21,7 +21,8 @@ export async function listAttestationsFor(
   const list = await rd.list('attestation', decode.attestation, [{ op: 'eq', name: 'subject', value: attr('subject', subject) }]);
   return list
     .filter((a) => sameAddr(a.subject, subject) && !sameAddr(a.creator, a.subject))
-    .map((a) => ({ ...a, trusted: trusted.has(a.creator) }))
+    // Trusted publication = allowlisted $creator AND readonly (content fixed at creation).
+    .map((a) => ({ ...a, trusted: a.readonly && trusted.has(a.creator) }))
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
@@ -54,7 +55,7 @@ export function attestationService(ctx: ServiceContext) {
       const self = ctx.port.address;
       if (!self) return [];
       const list = await rd().list('attestation', decode.attestation, [], { creator: self });
-      return list.map((a) => ({ ...a, trusted: ctx.trustedVerifiers.has(a.creator) })).sort((a, b) => b.createdAt - a.createdAt);
+      return list.map((a) => ({ ...a, trusted: a.readonly && ctx.trustedVerifiers.has(a.creator) })).sort((a, b) => b.createdAt - a.createdAt);
     },
   };
 }

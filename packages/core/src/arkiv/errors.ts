@@ -80,6 +80,10 @@ export function classify(err: unknown): Classified {
   if (/reverted/i.test(all)) return { code: 'BATCH_FAILED', retry: 'never', broadcast };
 
   if (links.some((e) => e.name === 'NoEntityFoundError')) return { code: 'NOT_FOUND', retry: 'never', broadcast };
+  // arkiv_query rejections reuse -32005 for "cursor expired"; never treat them as rate limits. The
+  // paginator restarts cursor errors itself; other kinds (parse/type/literal/limits/block) are bugs.
+  const qe = links.find((e) => e.name === 'QueryError') as (ErrLike & { kind?: unknown }) | undefined;
+  if (qe) return { code: qe.kind === 'cursor' ? 'NETWORK' : 'INVALID_INPUT', retry: 'never', broadcast };
   if (links.some((e) => e.name === 'InsufficientFundsError') || /insufficient funds/i.test(all)) {
     return { code: 'INSUFFICIENT_FUNDS', retry: 'never', broadcast };
   }

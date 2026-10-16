@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { attr, u64V } from '../codec/attrs';
 import { decode, encode } from '../codec/entities';
+import { revealMatches } from '../codec/handoff';
 import { addressSchema, complaintReasonSchema, keySchema } from '../codec/schemas';
 import { parseOrThrow } from '../codec/validate';
 import { BhaiyaPleaseError } from '../types';
-import type { Address, Complaint, FileComplaintInput, MutationResult, UnixSeconds } from '../types';
+import type { Address, Complaint, FileComplaintInput, MutationResult, Request, UnixSeconds } from '../types';
 import type { Predicate } from '../arkiv/port';
 import { extensionMovesLater, reader, requireSigner, sameAddr, TTL } from './context';
 import type { Reader, ServiceContext } from './context';
@@ -12,9 +13,30 @@ import type { Reader, ServiceContext } from './context';
 const fileSchema = z.object({ requestKey: keySchema, rider: addressSchema, reason: complaintReasonSchema });
 
 /**
+ * Evidence that `rider` actually served `request`: a readonly Delivery for it, written by the rider
+ * itself ($creator == rider attr), whose reveal hashes to the request's commit. Deliveries live 1 y,
+ * longer than any complaint, so the evidence outlives the run and its Accept.
+ */
+export async function riderDelivered(rd: Reader, request: Request, rider: Address): Promise<boolean> {
+  const list = await rd.list('delivery', decode.delivery, [{ op: 'eq', name: 'request', value: attr('request', request.key) }], {
+    creator: rider,
+  });
+  return list.some(
+    (d) =>
+      d.readonly &&
+      d.request === request.key &&
+      sameAddr(d.creator, rider) &&
+      sameAddr(d.rider, rider) &&
+      revealMatches(d.code, d.salt, request.key, request.codeCommit),
+  );
+}
+
+/**
  * Complaints about `rider`, keeping only those filed by the requester of the referenced request
- * (stops drive-by complaints), one per request, newest first.
- * Known limit: a resident who posted any request on the rider's run qualifies, accepted or not.
+ * for a request the rider provably delivered (stops drive-by complaints: without the delivery
+ * check, any wallet with ANY request could complain about ANY rider), one per request, newest first.
+ * Known limit: a no-show without a recorded delivery cannot be proven on chain (the Accept dies
+ * with the run), so it does not count; the app only offers complaints after a delivery.
  */
 export async function listComplaintsAgainst(rd: Reader, rider: Address, since?: UnixSeconds): Promise<Complaint[]> {
   const where: Predicate[] = [{ op: 'eq', name: 'rider', value: attr('rider', rider) }];
@@ -24,7 +46,8 @@ export async function listComplaintsAgainst(rd: Reader, rider: Address, since?: 
     list.map(async (c) => {
       if (!sameAddr(c.rider, rider) || sameAddr(c.creator, c.rider)) return null;
       const req = await rd.one(c.request, decode.request);
-      return req && sameAddr(req.creator, c.creator) ? c : null;
+      if (!req || !sameAddr(req.creator, c.creator)) return null;
+      return (await riderDelivered(rd, req, rider)) ? c : null;
     }),
   );
   const byRequest = new Map<string, Complaint>();
@@ -50,6 +73,10 @@ export function complaintService(ctx: ServiceContext) {
         { op: 'eq', name: 'request', value: attr('request', request.key) },
       ], { creator: self });
       if (existing.length > 0) throw new BhaiyaPleaseError('INVALID_INPUT', 'Complaint already filed for this request');
+      // Same evidence rule every viewer applies, checked before spending gas.
+      if (!(await riderDelivered(rd(), request, i.rider))) {
+        throw new BhaiyaPleaseError('INVALID_INPUT', 'This runner has no recorded delivery for your request');
+      }
 
       const now = ctx.port.now();
       const s = encode.complaint(ctx.project, { rider: i.rider, request: request.key, reason: i.reason, at: now });
