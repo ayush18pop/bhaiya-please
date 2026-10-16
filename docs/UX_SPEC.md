@@ -368,3 +368,13 @@ Never cut: the 4 tx states, countdown/expiry vanish, tier badge + cap, receipt o
 | `listAttestationsBy(me)` | `getMyIssuedAttestations` |
 | (not in spec) | `inspect(key)` for the on-chain proof panel on Receipt/Complaint, `verifyDelivery`, `encodeHandoffQR`/`decodeHandoffQR`, `encodeAddressQR`/`decodeAddressQR` |
 | Run tier badge | compute from `getProfile(runner)`; never trust the run's `claimedTier` |
+
+
+## 7. Maps and live location (added 16 Oct)
+Supersedes principle 2's "No map" for these screens only; the map chunk (MapLibre GL + OpenFreeMap vector tiles, no API key) is lazy-loaded on web so first paint is unchanged. Native: `@maplibre/maplibre-react-native` in a dev/production build; Expo Go shows a schematic SVG map (same pins and routes).
+- **Resident home `/r`**: map-first, like order tracking. Society gate pin, shops in the area as category pins, each runner heading here as a tier-ringed marker (pulse while fresh, faded when the last ping is > 60 s old, gone when it expires) gliding between pings, dashed route arc to the gate, "N min away · Ns ago" chip on the focused runner plus its breadcrumb trail. Draggable bottom sheet keeps the existing run list. Top bar: society + geohash, `● LIVE · updated Ns ago` (grey "Reconnecting…" when refreshes stall).
+- **Request status `/r/request/:key`**: live tracking card above the timeline (ETA countdown chip, LIVE badge, "Last seen Ns ago · ping deletes itself in Ns"), shown while posted/accepted.
+- **Shop picker `/r/run/:key`**: shops on the route on a map; tapping a pin selects the shop (synced with the list).
+- **Runner home `/u/run`** (active run): own position, gate, shops on route; card "Sharing live location · deletes itself in 2 min · only a ~150 m cell" with an on/off switch, last-sent time and cell; demo mode adds **Simulate route** (synthetic movement for judges on desktop). Sharing runs app-wide for the runner role (`PingBeacon`), every 20 s, coarsened on the device.
+- Live refresh: ping events invalidate only map queries; everything else still invalidates on any event; 5 s polling as backup.
+- Arkiv visible: "Live location deletes itself in 2 min" note (resident sheet) with explainer; positions are ~150 m cells and say so on the map.

@@ -2,7 +2,7 @@
 
 Chain: Arkiv Tiramisu testnet (chain id 7738577). SDK: `@arkiv-network/sdk` 0.8.1. Every entity is a plain Arkiv entity: **no smart contracts, no off-chain index, no backend**. Source of truth in code: attribute table `packages/core/src/codec/attrs.ts`, encoders `packages/core/src/codec/entities.ts`, validators `packages/core/src/codec/schemas.ts`, TTLs `packages/core/src/services/context.ts`, the only SDK importer `packages/core/src/arkiv/adapter.ts`.
 
-> Status legend: items tagged **[unverified]** have not yet been exercised against Tiramisu with a funded key (write-side). Section 8 lists each with the fallback that is implemented. Read-side facts (queries, `getBlockTiming`, `$key`/`$owner`/`$creator`/`$expiresAt` filters, `atBlock`) were probed on 16 Oct. This file is updated after the chain spike (`pnpm spike`).
+> Status: every write-side behaviour this schema relies on was exercised against Tiramisu with funded keys on 16 Oct 2026 (`pnpm spike`: 29/29 PASS; `pnpm seed`: the full fixture history written through the production core; the real-core web build driven end to end in a browser). Section 10 lists each assumption with its chain result.
 
 ## 1. Conventions
 
@@ -86,7 +86,7 @@ Payloads with no schema accept any JSON object and ignore its contents.
 
 ## 5. Queries the app runs
 
-Built with the typed builder `publicClient.select('*').where([...]).limit(200)` (`.ownedBy` → `$owner`, `.createdBy` → `$creator`, `.atBlock` for history), paginated up to 2000 rows. The strings below are the SDK's own rendering of those builders (`String(builder)`), with illustrative values. Lines marked *list* come from one helper that always prepends `project = str('bhaiyaplease') AND type = str('<type>')`.
+Built with the typed builder `publicClient.select('*').where([...]).limit(200)` (`.ownedBy` → `$owner`, `.createdBy` → `$creator`, `.atBlock` for history). Multi-page walks are pinned to the block of the first page (`.atBlock(page.blockNumber)`), restart once on an expired cursor, and stop at 2000 rows with a reported (not silent) truncation. The strings below are the SDK's own rendering of those builders (`String(builder)`), with illustrative values. Lines marked *list* come from one helper that always prepends `project = str('bhaiyaplease') AND type = str('<type>')`.
 
 | Used by (core API) | Query |
 |---|---|
@@ -101,7 +101,7 @@ Built with the typed builder `publicClient.select('*').where([...]).limit(200)` 
 | `getReceiptsFor(rider)` (reputation core) | `… type = str('receipt') AND $owner = addr(<rider>)`, then per receipt a read of its Delivery and that Delivery's Request |
 | `issueReceipt` duplicate check | `… type = str('receipt') AND delivery = key(0x…) AND $creator = addr(<resident>)` |
 | `transferAllReceipts()` | `… type = str('receipt') AND $owner = addr(<self>)` |
-| `getComplaintsAgainst(rider, since?)` | `… type = str('complaint') AND rider = addr(0x…) [AND at >= u64(since)]`, then a read of each referenced Request |
+| `getComplaintsAgainst(rider, since?)` | `… type = str('complaint') AND rider = addr(0x…) [AND at >= u64(since)]`, then a read of each referenced Request and `… type = str('delivery') AND request = key(0x…) AND $creator = addr(<rider>)` (evidence the rider served it) |
 | `fileComplaint` duplicate check | `… type = str('complaint') AND request = key(0x…) AND $creator = addr(<resident>)` |
 | `getAttestationsFor(subject)` | `… type = str('attestation') AND subject = addr(0x…)` |
 | `getMyIssuedAttestations()` | `… type = str('attestation') AND $creator = addr(<verifier>)` |
@@ -121,18 +121,21 @@ Anyone can create any entity with `project=bhaiyaplease`. Only `$creator` (immut
 | Run | `run.$owner == run.$creator`; limits use the runner's **computed** tier, never the `tier` attribute | Run hijack after transfer; fake "Trusted" claims |
 | Accept | `accept.$creator == run.$creator`, `accept.rider == accept.$creator`, refers to this run; earliest per request wins | Strangers "accepting" for a runner; double accept |
 | Delivery | reveal hashes to `request.code_commit`; `delivery.$creator == delivery.rider`; rider is not the requester; if a live Accept exists, rider matches it; earliest wins | Fake deliveries (the salted secret is unknown to anyone but resident and the scanning runner); a requester delivering to themselves; another runner stealing credit |
-| Receipt | delivery exists; reveal verifies; `delivery.rider == receipt.rider`; **`request.$creator == receipt.$creator`**; `receipt.$creator != receipt.rider`; the receipt is owned by the profile's wallet (`$owner` query) | Receipts for deliveries the issuer was not party to; self-issued receipts |
+| Receipt | delivery exists; reveal verifies; `delivery.rider == receipt.rider`; **`request.$creator == receipt.$creator`**; `receipt.$creator != receipt.rider`; receipt, delivery and request were all created **readonly** (`not_readonly` otherwise); the receipt is owned by the profile's wallet (`$owner` query) | Receipts for deliveries the issuer was not party to; self-issued receipts; a mutable receipt the runner (its owner) could re-point, or a mutable request whose commit could be swapped |
 | Duplicates | Only the **earliest** valid receipt per request counts; later ones are marked `duplicate` and shown greyed | A resident minting many receipts for one handoff |
 | Self-dealing | `receipt.$creator == rider` is invalid (`self_dealing`) | Runner issuing receipts to themselves |
-| Complaint | `complaint.$creator == request.$creator`, `complaint.$creator != rider`; one per request | Drive-by complaints from non-customers |
-| Attestation | counted as "verified" only if `$creator` is in the **viewer's** trusted-verifier list (`EXPO_PUBLIC_TRUSTED_VERIFIERS`), `attestation.$creator != subject`, not expired | Anyone minting "ID-checked" |
+| Complaint | `complaint.$creator == request.$creator`, `complaint.$creator != rider`, **and the rider provably served that request**: a readonly Delivery for it with `$creator == rider == complaint.rider` whose reveal hashes to the commit; one per request | Drive-by complaints: without the delivery check any wallet that posted *any* request could pin complaints on *any* runner and push a Trusted runner down with three cheap writes |
+| Attestation | counted as "verified" only if `$creator` is in the **viewer's** trusted-verifier list (`EXPO_PUBLIC_TRUSTED_VERIFIERS`), the attestation is **readonly**, `attestation.$creator != subject`, not expired | Anyone minting "ID-checked"; a mutable attestation whose subject could be patched |
 | Shop | passes zod; `zone5 == zone[0..5]` | Malformed junk |
 
 **Reputation** (computed in `services/reputation.ts`, no writes): valid receipts, distinct `$creator` count, last-30-day window by `$createdAt`, complaints separately. Tiers: New (₹200 cap, 1 request/run); Verified = a trusted live attestation (₹500, 2/run); Trusted = Verified and >= 25 valid receipts from >= 15 distinct residents and <= 2 complaints in 30 d (₹1000, 3/run). A trusted `successor` attestation carries the `prev` wallet's receipts over.
 
 **Known limits (stated, not hidden):**
 - A determined attacker with N wallets can farm receipts from N fake "residents" by running requests against themselves. Mitigation: the Trusted tier requires a verifier attestation, which cannot be farmed; New-tier caps are small.
-- Complaint trust only requires that the complainer created *a* request that names the rider's run, accepted or not.
+- A complaint needs a recorded Delivery as evidence. A no-show (accepted but never delivered) cannot be proven after the run expires, because the Accept dies with the run, so it does not count; the app only offers complaints after a delivery.
+- Receipts are transferable by their owner (that is what makes key rotation work), so a runner could hand its receipts to another wallet; the profile counts whatever receipts a wallet owns. Reputation is portable by design, and therefore also sellable.
+- `extendReceipt` (core only) renews the receipt, but the Request it is verified against is owned by the resident and expires after 1 y, after which the renewed receipt no longer verifies. Not claimed in the UI.
+- In demo mode the app also trusts the verifier wallet created in the same browser, so a judge can try the verifier flow; other viewers do not trust it.
 - Receipts are only as honest as the resident who issues them; the system proves *who said it*, not that it is true.
 - Handoff secret is a 4-digit code plus a 16-byte random salt; the salt prevents brute-forcing the 10,000 codes from `code_commit`.
 - Key loss: the runner can `changeOwnership` every receipt to a new wallet (`transferAllReceipts`), or a verifier issues a `successor` attestation.
@@ -172,19 +175,57 @@ Features marked "core only" are implemented and tested in `packages/core` but no
 
 Names, phone numbers, flat/door numbers, ID documents or numbers, exact GPS (only a geohash-6 cell leaves the device), chat, payments (UPI at the gate, off-chain), any delivery-platform data, the handoff code and salt **until the runner reveals them in the Delivery**, private keys, access keys, reputation scores (always recomputed), zone labels, the trusted-verifier list (viewer configuration), request secrets (kept in device storage). All demo content is synthetic: fictional shop names, persona ids, generic item lines.
 
-## 10. [unverified] write-side behaviour and implemented fallbacks
+## 10. Write-side assumptions: chain results (16 Oct 2026, SDK 0.8.1, Tiramisu)
 
-None of these has a chain result yet; each is covered by a step in `scripts/spike`. Results will be recorded here and in `friction.md`.
+All were open before the spike; all are now verified on chain. Reproduce with `pnpm spike` (details and exact error texts in `friction.md` section B).
 
-| # | Assumption | If wrong, what happens | Fallback in code |
+| # | Assumption | Result | What the code does now |
 |---|---|---|---|
-| 1 | `changeOwnership` of an entity created earlier in the **same** `executeBatch` is accepted | Receipt batch rejected | `receiptMode: 'auto'` falls back to `two_tx`: batch(create + extend) then `changeOwnership`, retried 3x; a half-done receipt is resumed on retry rather than duplicated. Atomicity is lost; `$creator` is unaffected |
-| 2 | `extendEntity` works on a **readonly** entity (request extended to 1 y by receipt, 180 d by complaint) | Receipt/complaint batch fails | **None.** The two-tx fallback includes the same extension. If rejected we would drop the extension and rely on `atBlock` verification; not implemented |
-| 3 | A non-owner can `extendEntity` a `permissionlessExtension` entity | "Still open" tap fails | None; the feature shows an error. Not claimed unless verified |
-| 4 | `patchEntity` partial `set` leaves expiry and other attributes untouched (accept batch) | Run would lose attributes or expiry | None in code; the spike checks it |
-| 5 | `predictEntityKeys` key equals the created key when `salt` is passed | Request: created key differs, so the commit is unusable | Request: delete the stray entity and retry once, then `KEY_PREDICTION_MISMATCH`. Receipt: error, nothing transferred |
-| 6 | Access key is accepted as a URL path suffix `<rpc>/<KEY>`, and browsers can reach the RPC (CORS) | Rate limits / blocked reads | Run without a key (the public RPC served reads on 16 Oct) |
-| 7 | Block-to-time conversion via `getBlockTiming()` (observed 16 Oct: unix seconds, 2 s) | Expiry/`createdAt` drift | Falls back to `Date.now()` and 2 s blocks. Expiry comparisons carry a 60 s margin |
-| 8 | Batch size (20 transfers per batch) and read-after-write latency | Failures in bulk transfer; stale reads right after a write | Chunking; `scripts/seed` waits one block after each write and retries pre-write reads |
-| 9 | Explorer URL path `/entity/<key>` | Dead link in the proof panel | Link is only shown when `explorerBaseUrl` is configured |
-| 10 | Injected (MetaMask) signer | Wrong network | Optional path; the burner key path is the default |
+| 1 | `changeOwnership` of an entity created earlier in the **same** `executeBatch` is accepted | **PASS**: readonly create + extend + transfer in one batch; owner = recipient, creator = issuer, readonly = true | Receipt batch is the default path. The `two_tx` fallback stays as defence in depth; it never triggered during seeding |
+| 2 | `extendEntity` works on a **readonly** entity | **PASS** (owner extend, and new owner after transfer) | Receipt and complaint batches extend the readonly Request |
+| 3 | A non-owner can extend a `permissionlessExtension` entity; a plain entity rejects it | **PASS** both ways (rejection text: `entity … is owned by 0x…, not 0x…`) | "Still open" works from any wallet; confirmed from a fresh browser burner |
+| 4 | `patchEntity` partial `set` leaves expiry and other attributes untouched | **PASS** (`$expiresAt` unchanged) | Accept batch patches only `capacity_left` |
+| 5 | `predictEntityKeys` key equals the created key when `salt` is passed | **PASS** (single create and in batches; never mismatched over the whole seed) | Mismatch handling kept |
+| 6 | Access key accepted; browsers can reach the RPC | **PASS**: URL path suffix and `X-API-KEY` header both work; a wrong key gives HTTP 401 `INVALID_KEY`; CORS preflight allows `Content-Type, Authorization, X-Api-Key` from `*`. Anonymous limit observed: 600 requests / 60 s | Core sends the key as the `X-API-KEY` header (not in the URL, so it cannot leak through error messages). In a static web build the key is public: restrict its Origins on hub.arkiv.network |
+| 7 | Block-to-time via `getBlockTiming()` | **PASS**: `currentBlockTime` unix seconds, `blockDuration` 2 | Unchanged |
+| 8 | Read-after-write latency | Entity visible to `select` ~230 ms after the receipt | Seed still waits 2.5 s per write (safety margin) |
+| 9 | Explorer URL path | Not verified | Link only shown when `EXPO_PUBLIC_EXPLORER_URL` is set |
+| 10 | Injected (MetaMask) signer | Not exercised | Optional path; burner keys are the default |
+| 11 | `!=` / `ne()` | Rejected by the node: `QueryError` kind `type`, code -32002 | Never used |
+
+## 11. `ping`: live location that deletes itself
+
+Added for the map-first tracking screens. Code: codec `packages/core/src/codec/ping.ts`, service `packages/core/src/services/locations.ts`, geometry `packages/core/src/geo.ts`, rules `PING_RULES` in `types.ts`.
+
+| Entity | Flags | Expiry | Created by / `$owner` | Why |
+|---|---|---|---|---|
+| `ping` | RO | `min(120 s, run.$expiresAt - now)`: a ping never outlives its run | runner / runner | A coarse "I am around here" for one live run. Nobody edits it (RO), nobody deletes it: the chain does, 2 minutes later. |
+
+Attributes (`ENTITY_ATTRS.ping`):
+
+| Attribute | Type | Purpose |
+|---|---|---|
+| `run` | key | The run this position belongs to |
+| `rider` | addr | Must equal `$creator` (and the run's `$creator`) |
+| `gh7` | str (geohash-7, ~153 m x 153 m) | The position. **Coarsened on the device** (`coarsenToGh7`); exact lat/lng is never written |
+| `zone5` | str (geohash-5) | `gh7[0..5]`; a mismatch drops the ping. Lets a viewer query "pings around my area" |
+| `at` | u64 | Writer-declared unix time (ordering hint only; freshness uses `$createdAt`) |
+| `seq` | i32 (optional) | Per-run sequence number |
+
+Payload: `{ "heading"?: 0..360, "speedKmh"?: 0..200 }`, both optional.
+
+Writes and cadence: the runner app publishes one ping every 20 s (`PING_RULES.intervalSeconds`) **only while its run is live and the runner has sharing switched on**; it stops when the run ends or expires (`publishPing` throws `EXPIRED`, `NOT_OWNER` for anyone but the run's creator). The app reads GPS through `expo-location` (foreground permission; browser Geolocation on web), or in demo mode a synthetic route ("Simulate route").
+
+Queries:
+
+| Used by | Query |
+|---|---|
+| `getLatestPings(zone5)` | `… type = str('ping') AND zone5 = str('tdr3c')` |
+| `getLatestPings(runKeys)` | `… type = str('ping') AND (run = key(0x…) OR run = key(0x…))` |
+| `getRunTrail(runKey)` | `… type = str('ping') AND run = key(0x…) AND $creator = addr(<runner>)` |
+
+Trust: a ping counts only if `ping.$creator == ping.rider == run.$creator` and the run is a live, trusted run (`$owner == $creator`). Forged pings (anyone else naming the run, or the runner naming someone else as rider) are ignored; the latest valid ping per run wins (`$createdAt`, then `seq`, then `at`). Viewers fade a marker whose latest ping is older than 60 s (`staleAfterSeconds`) and drop it at expiry, because an expired ping no longer exists (there is no expiry event; the app ticks a clock).
+
+What the user sees: residents see each runner heading to their gate as a pulsing, tier-coloured marker with "N min away · Ns ago" and a short breadcrumb trail (the ≤ 6 still-living pings); runners see "Sharing live location · deletes itself in 2 min" with an off switch. Demo data: the mock and `scripts/seed/heartbeat.ts` (≤ 6 pings per announced run per invocation) move runners along a deterministic synthetic route in the demo zones (Whitefield, Bengaluru); no real person's location is ever written.
+
+Privacy limits (stated): a 153 m cell still reveals roughly where a runner is while sharing; that is the point of the feature, it is opt-in per run, and it disappears after 2 minutes. Pings are public like every Arkiv entity.

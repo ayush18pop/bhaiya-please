@@ -3,7 +3,7 @@
 SDK: `@arkiv-network/sdk` **0.8.1** with `viem` 2.57.7, Node 20, Tiramisu testnet (chain id 7738577). Surfaces used: `createPublicClient`/`createWalletClient`, `createEntity`, `patchEntity`, `extendEntity`, `changeOwnership`, `deleteEntity`, `executeBatch`, `predictEntityKeys`, `select()` query builder, `watchEntityEvents`, `getBlockTiming`, entity flags (`readonly`, `permissionlessExtension`), `ExpirationTime`, access key.
 
 How to read this file:
-- **Evidence** says how we know: `source` = read in the shipped package source and type-checked, not yet run against the chain; `chain` = observed against Tiramisu; `build` = hit while building. Write-side items stay `source` until the chain spike runs (section B).
+- **Evidence** says how we know: `source` = read in the shipped package source and type-checked; `chain` = observed against Tiramisu; `build` = hit while building. Section B records the chain spike and seed (16 Oct), which upgraded findings 1, 8, 10 and 16 to `chain`.
 - **Time lost** values are **estimates** from memory of the build, not measured.
 - Full SDK notes: `docs/SDK_NOTES.md`. Probe/spike code: `scripts/spike/spike.ts`.
 
@@ -12,7 +12,7 @@ How to read this file:
 ### 1. `ne()` / `!=` is in the SDK but the network is documented to reject it
 - **SDK**: 0.8.1. **Symbol**: `import { ne } from '@arkiv-network/sdk/query'`, `ne('x', i32(1))`.
 - **Expected**: an operator the typed API offers is accepted by the network, or is not offered.
-- **Actual**: the builder renders `x != i32(1)` without error; the docs say the current network rejects `!=`. The failure would only appear at request time. Evidence: `source`.
+- **Actual**: the builder renders `x != i32(1)` without error; the node rejects it only at request time (`QueryError` kind `type`, -32002, see S7). Evidence: `chain`.
 - **Reproduce**: `String(pub.select('*').where([ne('a', i32(1))]))` prints a valid-looking query. `scripts/spike` step "query: ne() / != (open Q2)" sends it to the node and records the error kind.
 - **Workaround**: never use `ne`; `not(eq(...))` or client-side filtering. Our app uses neither server-side.
 - **Time lost (estimate)**: 20 min.
@@ -68,7 +68,7 @@ How to read this file:
 ### 8. Bare numbers are `i32`; comparing a `u64` attribute with a bare number matches nothing
 - **SDK**: 0.8.1. **Symbol**: `eq('eta', 5)`, `gt('eta', 5)`.
 - **Expected**: a type mismatch error, or numeric coercion.
-- **Actual**: the query is valid and silently returns an empty set. Same for bigint → `u256`. Evidence: `source`.
+- **Actual**: the query is valid and silently returns an empty set. Same for bigint → `u256`. Evidence: `chain` (S13).
 - **Reproduce**: write `eta: u64(100n)`, query `gt('eta', 5)`.
 - **Workaround**: attribute types come from one table (`codec/attrs.ts`, `attr()` constructor) so a name cannot be written or queried with the wrong type.
 - **Time lost (estimate)**: 30 min.
@@ -84,9 +84,9 @@ How to read this file:
 ### 10. Access key format is not shown, and the key is public in a browser
 - **SDK**: 0.8.1. **Symbol**: custom RPC `http(url)`.
 - **Expected**: a documented URL/header format, and a story for static front-ends.
-- **Actual**: docs say "append the access key to the end of the RPC URL" with no example, and warn that it leaks in a browser, which is the exact case for a no-backend app. Evidence: `source`, to be confirmed by spike.
+- **Actual**: docs say "append the access key to the end of the RPC URL" with no example, and warn that it leaks in a browser, which is the exact case for a no-backend app. Evidence: `chain` (S8: path and header both work).
 - **Reproduce**: n/a (documentation).
-- **Workaround**: `rpcUrlWithKey()` appends `/<KEY>`; the key is optional; separate keys for the web bundle and for seed/heartbeat. [unverified: see section B]
+- **Workaround**: the key is optional; core now sends it as the `X-API-KEY` header (verified, see S8 and finding 17); separate keys for the web bundle and for seed/heartbeat; the web key's Origins are restricted on hub.arkiv.network.
 - **Time lost (estimate)**: 20 min.
 
 ### 11. Reserved attribute names are only discoverable in source
@@ -137,27 +137,52 @@ How to read this file:
 - **Workaround**: retry with backoff on 429/5xx (reads only; writes retried only before broadcast), batching of joins, `staleTime`.
 - **Time lost (estimate)**: 30 min.
 
-## B. To be filled after chain spike
+## B. Chain spike and seed results (16 Oct 2026)
 
-Run `pnpm spike` with a funded `SEED_PRIVATE_KEY` (and `VERIFIER_PRIVATE_KEY` for the two-wallet checks). For each, record PASS/FAIL, the exact error text, and the fallback taken. Nothing below is claimed until done.
+Setup: SDK `@arkiv-network/sdk` **0.8.1**, `viem` 2.57.7, Node 20, Tiramisu (chain id 7738577), two funded EOAs (wallet A ~9 GLM, wallet B ~1 GLM), access key from hub.arkiv.network. Reproduce: fill `.env` (`SEED_PRIVATE_KEY`, `VERIFIER_PRIVATE_KEY`, `ARKIV_ACCESS_KEY`) and run `pnpm spike` (each check prints PASS/FAIL with the raw node text), then `pnpm seed`. Result: **29 PASS, 0 FAIL, 0 SKIP**, run twice (once in the morning, once at 06:0x UTC, head ≈ 625117).
 
-| # | Check | Why it matters | Status |
+| # | Check | Result | Evidence (exact) |
 |---|---|---|---|
-| S1 | `createEntity` with attributes + flags + expiry; read back; returned `expiresAt` vs `$expiresAt` | Baseline; expiry drift | TODO |
-| S2 | `executeBatch`: create + `changeOwnership` of the **new** key in one batch | Receipt flow (`schema.md` item 1) | TODO |
-| S3 | `predictEntityKeys` equals `createdEntities` for 1 and 2+ creates in a batch | Handoff commit (item 5) | TODO |
-| S4 | `executeBatch`: create + `patchEntity`; expiry and other attributes unchanged after patch | Accept flow (item 4) | TODO |
-| S5 | `extendEntity` on a **readonly** entity | Request/receipt extension (item 2) | TODO |
-| S6 | `extendEntity` by a non-owner on a `permissionlessExtension` entity; non-owner on a plain entity must fail | Shop "still open" (item 3) | TODO |
-| S7 | `ne()` / `!=` error text and `QueryError.kind` | Friction 1 | TODO |
-| S8 | Access key as URL suffix; header alternative; browser CORS | Friction 10 (item 6) | TODO |
-| S9 | `watchEntityEvents`: created/patched/extended/transferred/deleted observed for our writes | Live board | TODO |
-| S10 | Read-after-write lag: time from receipt to visible in `select` | Seed/heartbeat settle delay | TODO |
-| S11 | `$creator` unchanged and `$owner` changed after `changeOwnership`; `.ownedBy`/`.createdBy` correct | Trust model | TODO |
-| S12 | Gas per op/batch in GLM; faucet amount; max batch size (20 transfers) | `SEED_FUND_GLM`, judge onboarding | TODO |
-| S13 | `u64` vs `i32` range queries across wallets | Run board query | TODO |
-| S14 | Expired entities disappear from queries after N blocks | "Vanishes by itself" claim | TODO |
-| S15 | Faucet UX for a fresh judge wallet (login? captcha? amount) | App "Fund me" flow | TODO |
+| S1 | `createEntity` with str/u64/i32/addr/key/bytes32 attrs + flags + expiry; read back | PASS | Returned `expiresAt` (block 625570) equals `$expiresAt` read back. Values come back typed: `eta: bigint`, `cap: number`, addresses EIP-55 |
+| S2 | `executeBatch`: create(readonly) + extend + `changeOwnership` of the **new** key in one batch | PASS | After the tx: `$owner` = recipient, `$creator` = issuer, `readonly = true`; a `$creator AND $owner` query returns it. Our receipt batch never needed the two-tx fallback during seeding |
+| S3 | `predictEntityKeys` = created key (salt passed) | PASS | Single create and batch creates; no mismatch over the whole seed (38 requests + 37 receipts predicted) |
+| S4 | create + patch in one batch; partial patch keeps expiry and other attrs | PASS | `expiresAt before 625570 after 625570` |
+| S5 | `extendEntity` on a readonly entity | PASS | Owner extend 625578 → 626032; and the *new* owner after a transfer can extend (runner renews receipt) |
+| S6 | Non-owner extend on `permissionlessExtension` entity; non-owner on a plain entity | PASS / rejected as expected | Stranger extend → 626048, owner unchanged. Plain entity: `entity 0x64bd…50d9 is owned by 0x7975…080c, not 0x166E…eE20` |
+| S7 | `ne()` / `!=` | Rejected by node | `QueryError: Query rejected (type, -32002) … Error: != is not part of the query language — write NOT (attr = value) for the complement`. Good message; the SDK still exports `ne()` (finding 1) |
+| S8 | Access key | PASS | `<rpc>/<KEY>` path and `X-API-KEY: <KEY>` header both give HTTP 200 with `ratelimit: limit=9999`; wrong key → HTTP 401 `{"error":"INVALID_KEY","message":"unknown API key"}`; anonymous → `ratelimit: limit=600, remaining=599, reset=60`. CORS preflight: `access-control-allow-origin: *`, `allow-headers: Content-Type, Authorization, X-Api-Key`. Verified in Chromium: the real-core web build made 0 RPC responses ≥ 400 over a full flow |
+| S9 | `watchEntityEvents` | PASS | 14 events for our keys among 91 on chain during the spike; all five event shapes logged (see `scripts/spike`). Chain background load measured over 300 blocks: 690 events, **2.3 per block** (472 created), so a project-filtered live board must classify ~1 foreign entity per second |
+| S10 | Read-after-write lag | PASS | Entity visible to `select` **228 ms** after the receipt |
+| S11 | `$creator` immutable / `$owner` changes after `changeOwnership`; `.ownedBy`/`.createdBy` | PASS | See S2 |
+| S12 | Gas | PASS | One create: gasUsed 125,528 × 1,000,000,002 wei = **0.000125528 GLM**. Seed funded 22 persona wallets with 0.05 GLM each; the whole seed (≈ 200 transactions incl. batches, 23 wallets) cost **≈ 0.03 GLM** in gas; the trusted runner's ~95 transactions cost 0.0127 GLM (≈ 0.00013 GLM each) |
+| S13 | u64 / i32 range queries, incl. negative i32; typed mismatch | PASS | `eta > u64(now)`, `cap >= i32(3)`, `delta < i32(0)` correct; `cap = u64(3)` against an i32 attribute returns **empty, no error** (finding 8 confirmed) |
+| S14 | Expired entities vanish from queries | PASS (indirect) | Runs announced by the heartbeat drop out of `getLiveRuns` after ETA + 10 min; queries never returned an entity past `$expiresAt` |
+| S15 | Faucet UX for a fresh judge wallet | Not determined headlessly | The faucet page is client-rendered; we did not automate it. The app therefore ships an operator path (`pnpm fund <address>`) to top up a judge's burner from our seed wallet |
+
+### New findings from the chain runs
+
+#### 17. Access key in the URL leaks through error messages; the header works but is undocumented in the SDK path
+- **SDK**: 0.8.1 + viem 2.57.7. **Symbol**: `http(url)` transport.
+- **Expected**: one documented way to pass the key that does not end up in logs.
+- **Actual**: the docs say "append the key to the RPC URL". viem's `HttpRequestError` message includes the full request URL, so any transport error shown in a toast or a CI log prints the key. `X-API-KEY` (and `Authorization: Bearer`) headers work and are CORS-allowed, which we only found by probing. Evidence: `chain`.
+- **Reproduce**: `curl -H 'X-API-KEY: <key>' -d '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' https://rpc.tiramisu.db-chain.testnet.arkiv.network` → 200; with a bogus key → 401 `INVALID_KEY`.
+- **Workaround**: `rpcTransport()` in `packages/core/src/arkiv/adapter.ts` sends `X-API-KEY`; seed scripts additionally redact secrets from output.
+- **Time lost (estimate)**: 30 min.
+
+#### 18. `arkiv_query` reuses JSON-RPC code -32005 for "cursor expired"
+- **SDK**: 0.8.1. **Symbol**: `QueryError` (`kind: 'cursor'`, code -32005) vs viem `LimitExceededRpcError` (also -32005).
+- **Expected**: distinct codes for "your cursor is stale, restart the walk" and "rate limited".
+- **Actual**: a generic error classifier that maps -32005 to "rate limited, back off and retry the same request" retries a dead cursor three times. Evidence: `source` (SDK `query/errors.ts`) plus the skills' known-issues note that an unpinned cursor can be rejected once the head moves.
+- **Workaround**: classify `QueryError` by `kind` before looking at codes (`arkiv/errors.ts`); pin multi-page walks to the first page's `blockNumber` and restart once on a cursor error (`adapter.ts`).
+- **Time lost (estimate)**: 20 min.
+
+#### 19. Node rejection messages are excellent (positive)
+- Rejections read like documentation: `entity … was created readonly, so its contents can never change. Its expiry can still be extended, and it can be transferred or deleted`, `already expires at block 625570, so extending it to 625154 would shorten its life`, `!= is not part of the query language — write NOT (attr = value)`. They arrive pre-broadcast (gas estimation), so a mistake costs no GLM. The outer viem error says only `Execution reverted for an unknown reason`; the useful text is two causes deep. Surfacing it in `EntityMutationError.message` would save every app a cause-chain walk.
+
+#### 20. Seeding history is slow by construction
+- **SDK**: 0.8.1. **Symbol**: sequential writes per wallet (`createEntity`, `executeBatch`).
+- **Actual**: the fixture history (38 handoffs, ~5 dependent transactions each, every one waiting for its receipt) took **≈ 40 minutes** wall clock (8.5 min before the first run was interrupted, then 1,868 s for `--resume`), dominated by receipt waits and by profile recomputation before each tier-gated write (a profile read joins every receipt to its Delivery and Request, so it grows with history). Dependencies (request key must exist before the delivery reveals it; receipt needs the delivery) prevent batching across steps, and per-wallet nonce ordering prevents parallelism within a wallet. Evidence: `chain`.
+- **Workaround**: run once; the heartbeat only adds cheap runs.
 
 ## C. One thing Arkiv should improve first (draft)
 

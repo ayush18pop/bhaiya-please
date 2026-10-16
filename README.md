@@ -68,7 +68,7 @@ Requirements: Node >= 20, pnpm 10.
 
 ```bash
 pnpm install
-cp .env.example .env        # only needed for seed / spike / heartbeat; the app needs none
+cp .env.example .env        # needed for seed / spike / heartbeat / fund; the mock app needs none
 pnpm test                   # core unit + e2e tests (in-memory chain, no network)
 pnpm typecheck              # all workspaces
 pnpm dev                    # the app in MOCK mode (EXPO_PUBLIC_CORE=mock): runs fully offline
@@ -81,29 +81,59 @@ Against the real chain you need a funded test key (faucet: <https://hub.arkiv.ne
 pnpm spike                  # exercises every risky Arkiv primitive, prints PASS/FAIL (see arkiv/friction.md section B)
 pnpm seed                   # funds persona wallets, replays the fixture plan through the REAL core, prints addresses
 pnpm seed -- --dry          # print derived persona addresses only (no chain access)
+pnpm seed -- --resume       # continue an interrupted seed without duplicating what is on chain
+pnpm fund 0xADDR [0xADDR..] # top up any wallet (e.g. a judge's in-browser burner) from the seed wallet
 EXPO_PUBLIC_CORE=real pnpm dev          # the app against Tiramisu
-EXPO_PUBLIC_CORE=real pnpm build:web    # static web export (apps/mobile, expo export --platform web)
+EXPO_PUBLIC_CORE=real EXPO_PUBLIC_TRUSTED_VERIFIERS=0x166efae608457303daf2af830d281922c5d6ee20 \
+  EXPO_PUBLIC_ARKIV_ACCESS_KEY=<web key> pnpm build:web   # static web export against Tiramisu
 ```
 
-Set `EXPO_PUBLIC_TRUSTED_VERIFIERS` (and optionally `EXPO_PUBLIC_ARKIV_ACCESS_KEY`, which is public in the bundle) to the demo verifier address that `pnpm seed` prints. Persona wallets are derived deterministically from `SEED_PRIVATE_KEY` (keccak of key + persona id); keys are never printed or written. Seeding takes roughly 15-30 minutes (about five transactions per handoff, written one after another).
+**Access key in a static web build is public.** Anything in `EXPO_PUBLIC_*` ships in the JavaScript bundle. Use a *separate* hub.arkiv.network key for the web build and restrict its allowed Origins to the deployment domain on the hub (an Origin allowlist stops other websites from spending it from a browser; it does not stop scripts, so treat it as a rate-limit key, never as a secret). Core sends the key as the `X-API-KEY` header, not in the URL, so it never appears in error messages. The app also works without a key (anonymous limit observed: 600 requests per minute).
 
-**To see the Arkiv usage as a judge:** open the app and a runner's profile (the seeded "trusted" runner has 30 receipts from 18 distinct residents), open a receipt, and expand the on-chain proof panel: it shows the raw `$creator` (resident), `$owner` (runner), `readonly` flag and expiry read straight from Arkiv. The literal queries are in [`arkiv/schema.md`](arkiv/schema.md#5-queries-the-app-runs). To act, create a burner wallet in the app and fund it from the faucet (browsing needs no funds).
+Set `EXPO_PUBLIC_TRUSTED_VERIFIERS=0x166efae608457303daf2af830d281922c5d6ee20` (the seeded demo verifier; also the default in `.env.example`). Persona wallets are derived deterministically from `SEED_PRIVATE_KEY` (keccak of key + persona id); keys are never printed or written. Seeding takes roughly 15-30 minutes (about five transactions per handoff, written one after another).
+
+**To see the Arkiv usage as a judge:** open the app and a runner's profile (the seeded "trusted" runner has 30 receipts from 18 distinct residents), open a receipt, and expand the on-chain proof panel: it shows the raw `$creator` (resident), `$owner` (runner), `readonly` flag and expiry read straight from Arkiv. The literal queries are in [`arkiv/schema.md`](arkiv/schema.md#5-queries-the-app-runs). To act, create a burner wallet in the app and fund it from the faucet (browsing needs no funds). Every write costs gas (one create is about 0.000125 GLM, so 0.01 GLM covers a full runner + resident + verifier flow many times over). If the faucet is inconvenient, send us the wallet address and we top it up with `pnpm fund <address>`; no private key is ever shipped in the app.
 
 Note on seeded history: a real chain cannot be time-travelled, so seeded history is written "now". Counts, tiers and hash verification match the mock; timestamps and the "last 30 days" figures do not.
 
 ## Wallets that create entities on Tiramisu
 
-Filled after `pnpm seed`. (The funding wallet only sends GLM and creates no entities.)
+Seeded on 16 Oct 2026 with `pnpm seed` (addresses only; persona keys are derived from the seed key and never printed or stored). The funding wallet `0x7975e591c26e6c6d9b0cfd9a81f6d61a921c080c` only sends GLM (and ran the chain spike); it creates no app entities.
 
 | Role | Persona id | Address |
 |---|---|---|
-| Verifier (trusted by the app) | `verifier` | `<TODO>` |
-| Runner, Trusted tier | `runner-trusted` | `<TODO>` |
-| Runner, Verified tier | `runner-verified` | `<TODO>` |
-| Runner, New | `runner-new` | `<TODO>` |
-| Demo resident / shop confirmer | `resident-demo` | `<TODO>` |
-| Seeded residents (18) | `resident-01` ... `resident-18` | `<TODO, paste table from seed output>` |
+| Verifier (trusted by the app: `EXPO_PUBLIC_TRUSTED_VERIFIERS`) | `verifier` | `0x166efae608457303daf2af830d281922c5d6ee20` |
+| Runner, Trusted tier | `runner-trusted` | `0x21f758e41831e8fed3486a8fa3d894a12f69cc1a` |
+| Runner, Verified tier | `runner-verified` | `0x7b9c76f7d847dd5dd244507ce883fa51b8f2e33a` |
+| Runner, New | `runner-new` | `0x280e00fd992aa5eec367846df3501858dcf955da` |
+| Demo resident / shop confirmer | `resident-demo` | `0xe6cedb47644361328bdf7163889ebea122bfdc1f` |
+| Seeded resident | `resident-01` | `0x24c071932da931dc9185a632da9fa9e1b27acb84` |
+| Seeded resident | `resident-02` | `0x61cb00b358e95208e4ab5e12eccd40bf470c40de` |
+| Seeded resident | `resident-03` | `0x2aec208b2e281c5b4b44dec5bbeb28a0ab9d1e33` |
+| Seeded resident | `resident-04` | `0x6f4cb106b91023b29c10682a812c206aafcd04d1` |
+| Seeded resident | `resident-05` | `0xf7c20fda02bfb06212a3d78e9052c8636e873596` |
+| Seeded resident | `resident-06` | `0x12b18d662471b5734ee22d61891f08062380cad4` |
+| Seeded resident | `resident-07` | `0x35b7d402dd62c2b0980193aa05d93862f1a3b443` |
+| Seeded resident | `resident-08` | `0xf99e90100eecb25c4576dbba710b546467fd6070` |
+| Seeded resident | `resident-09` | `0xd6c1cf034a1429181f750fd7805746cc39029c65` |
+| Seeded resident | `resident-10` | `0x3c569ddb147cae1ab152ea52bb3bbaf28bba5fce` |
+| Seeded resident | `resident-11` | `0x13be7bfb570ef7b1a136d7a3c19fb0ec454d8412` |
+| Seeded resident | `resident-12` | `0x51d401ea76a1744033ffa4580d50b61278f481fa` |
+| Seeded resident | `resident-13` | `0x89a4c82ffab9f3230aec1de1625d51c10871fd08` |
+| Seeded resident | `resident-14` | `0x44297f9cdfd7680ac16c2df9ef65edf180036430` |
+| Seeded resident | `resident-15` | `0xefe33df22f9106a31fd35093573a0c483712ae8e` |
+| Seeded resident | `resident-16` | `0xcbc510005da0ac6a315358d78cbba459cddf64b3` |
+| Seeded resident | `resident-17` | `0x6f229829008cbeb9bbfc6ff021852c4f1f4f9ca0` |
+| Seeded resident | `resident-18` | `0xac70dc43cdd8fac1b34e620a197ac58806582108` |
 | Judges' own burner wallets | n/a | created in the browser; they create entities when judges use the app |
+
+Profiles recomputed from chain by an anonymous viewer after seeding (16 Oct), trusting only the verifier above:
+
+| Runner | Valid receipts | Distinct residents | Invalid | Complaints | Verified | Tier |
+|---|---|---|---|---|---|---|
+| runner-trusted | 30 | 18 | 0 | 0 | yes | Trusted |
+| runner-verified | 6 | 5 | 0 | 1 | yes | Verified |
+| runner-new | 2 | 2 | 0 | 0 | no | New |
 
 ## Heartbeat cron (disclosure)
 
