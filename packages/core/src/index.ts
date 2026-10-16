@@ -26,6 +26,7 @@ export {
 } from './mock';
 export type { FixtureEnv, FixturePersona, FixturePlan, MockPersona } from './mock';
 export { DEFAULT_RPC_URL } from './arkiv/adapter';
+export * from './geo';
 
 export const coreHelpers: CoreHelpers = {
   computeCodeCommit,

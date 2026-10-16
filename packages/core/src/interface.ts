@@ -49,6 +49,8 @@ import type {
   Zone6,
   Hex,
   UnixSeconds,
+  Ping,
+  PingMeta,
 } from './types';
 
 export interface BhaiyaPlease {
@@ -184,6 +186,24 @@ export interface BhaiyaPlease {
   /** CUT-ABLE. Move all own receipts to a new wallet (key rotation). Arkiv: executeBatch ownershipChanges. */
   transferAllReceipts(to: Address): Promise<MutationResult>;
 
+  // ------------------------------------------------------------------ live location (pings)
+  /**
+   * Runner shares a coarse position for its live run: a readonly Ping with a geohash-7 cell
+   * (never exact lat/lng), expiring in 120 s (never after the run). Throws NOT_OWNER for anyone but
+   * the run's creator, EXPIRED once the run is over. Arkiv: createEntity(readonly) + short expiry.
+   */
+  publishPing(runKey: EntityKey, gh7: string, meta?: PingMeta): Promise<MutationResult>;
+
+  /**
+   * Latest valid ping per run, in an area (zone5) or for specific runs. A ping counts only if
+   * ping.$creator == ping.rider == run.$creator and the run is live. Expired pings are simply gone.
+   * Arkiv: attribute query `type=ping AND (zone5=… | run=key(…) OR …)` + $creator trust filter.
+   */
+  getLatestPings(scope: Zone5 | readonly EntityKey[]): Promise<Ping[]>;
+
+  /** All live valid pings of a run, oldest first (≤ 2 min breadcrumb trail). Arkiv: query on key attr + $creator. */
+  getRunTrail(runKey: EntityKey): Promise<Ping[]>;
+
   // ------------------------------------------------------------------ live updates
   /**
    * Client-side-filtered change stream from ONE shared poller. Arkiv: watchEntityEvents.
@@ -209,6 +229,8 @@ export interface MockBhaiyaPlease extends BhaiyaPlease {
     /** Switch active wallet (same store) — handy for single-tab role testing. */
     setAddress(address: Address): void;
     reset(reseed?: boolean): void;
+    /** Live-location demo: publish one due ping per live seeded-runner run (synthetic route). Returns count. */
+    pingTick(): Promise<number>;
   };
 }
 

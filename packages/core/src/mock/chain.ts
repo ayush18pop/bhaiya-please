@@ -50,7 +50,8 @@ const ZERO = '0x0000000000000000000000000000000000000000';
 const MAX_ATTRS = 32;
 const MAX_STR_BYTES = 128;
 const MAX_PAYLOAD_BYTES = 128 * 1024;
-const ATTR_NAME = /^[A-Za-z][A-Za-z0-9._-]*$/;
+/** Tiramisu rejects uppercase names (Ident32InvalidByte) although SDK 0.8.1 accepts them; mirror the node. */
+const ATTR_NAME = /^[a-z][a-z0-9._-]*$/;
 const RESERVED = new Set(
   'and or not true false startswith exists typeof bool i32 u64 u256 dec bytes32 bytes str addr key'.split(' '),
 );
@@ -301,6 +302,11 @@ export class MockChain {
   private pruneExpired() {
     const cutoff = this.now() - 86_400;
     for (const [k, e] of Object.entries(this.state.entities)) if (e.expiresAt < cutoff) delete this.state.entities[k];
+    // Live-location pings are high-volume and worthless once expired: drop them right away.
+    const now = this.now();
+    for (const [k, e] of Object.entries(this.state.entities)) {
+      if (e.expiresAt <= now && e.attributes.type?.value === 'ping') delete this.state.entities[k];
+    }
   }
 
   // ---------------------------------------------------------------- cross-tab

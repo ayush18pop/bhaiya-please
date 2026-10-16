@@ -36,6 +36,9 @@ export const ATTR = {
   resident: 'addr',
   delivery: 'key',
   reason: 'str',
+  // ---- live location (ping) ---- additive; ping also reuses run, rider, zone5, at
+  gh7: 'str',
+  seq: 'i32',
 } as const satisfies Record<string, AttrType>;
 
 export type AttrName = keyof typeof ATTR;
@@ -50,6 +53,7 @@ export const ENTITY_ATTRS: Readonly<Record<EntityType, readonly AttrName[]>> = {
   delivery: ['request', 'rider', 'resident', 'zone'],
   receipt: ['rider', 'delivery', 'zone', 'at'],
   complaint: ['rider', 'request', 'reason', 'at'],
+  ping: ['run', 'rider', 'gh7', 'zone5', 'at', 'seq'],
 };
 
 export const ENTITY_TYPES: readonly EntityType[] = [
@@ -61,6 +65,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'delivery',
   'receipt',
   'complaint',
+  'ping',
 ];
 
 export function isEntityType(v: unknown): v is EntityType {

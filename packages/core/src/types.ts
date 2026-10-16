@@ -33,7 +33,9 @@ export type EntityType =
   | 'accept'
   | 'delivery'
   | 'receipt'
-  | 'complaint';
+  | 'complaint'
+  // live location (see "Live location" below)
+  | 'ping';
 
 /** Arkiv system attributes, surfaced on every domain object. Unforgeable. */
 export interface EntityMeta {
@@ -151,6 +153,45 @@ export interface Attestation extends EntityMeta {
 }
 
 // ---------------------------------------------------------------------------
+// Live location: coarse, self-expiring pings ("live location that deletes itself")
+// ---------------------------------------------------------------------------
+
+/** Geohash precision 7 (~153 m x 153 m). The only form a position is ever written in. */
+export type Gh7 = string;
+
+/** Rules shared by writer, readers and the mock. */
+export const PING_RULES = {
+  /** Every ping expires on its own after 2 minutes (never later than its run). */
+  ttlSeconds: 120,
+  /** Runner app cadence while a run is active. */
+  intervalSeconds: 20,
+  /** Viewers fade a marker whose latest ping is older than this. */
+  staleAfterSeconds: 60,
+  precision: 7,
+} as const;
+
+export interface Ping extends EntityMeta {
+  run: EntityKey;
+  /** Must equal $creator AND the run's $creator, else the ping is ignored. */
+  rider: Address;
+  gh7: Gh7;
+  /** = gh7.slice(0, 5); lets a resident query "pings around my area". */
+  zone5: Zone5;
+  /** Writer-declared unix time (ordering hint; freshness uses $createdAt). */
+  at: UnixSeconds;
+  seq?: number;
+  /** Degrees, 0 = north (payload). */
+  heading?: number;
+  speedKmh?: number;
+}
+
+export interface PingMeta {
+  seq?: number;
+  heading?: number;
+  speedKmh?: number;
+}
+
+// ---------------------------------------------------------------------------
 // Verification & reputation (computed client-side, never stored)
 // ---------------------------------------------------------------------------
 
@@ -161,7 +202,8 @@ export type ReceiptInvalidReason =
   | 'creator_not_requester' // receipt.$creator !== request.$creator
   | 'rider_mismatch' // delivery.$creator / delivery.rider / receipt.rider disagree
   | 'self_dealing' // receipt.$creator === receipt.rider
-  | 'duplicate'; // another valid receipt already credits the same request (one handoff = one credit)
+  | 'duplicate' // another valid receipt already credits the same request (one handoff = one credit)
+  | 'not_readonly'; // receipt, delivery or request was not created readonly, so its content could have been edited
 
 export interface DeliveryVerification {
   valid: boolean;
@@ -399,6 +441,11 @@ export interface MockConfig {
    * cross-tab via storage events, so two tabs act as runner + resident.
    */
   store?: 'memory' | 'localStorage';
+  /**
+   * Live location demo: the seeded runners' live runs move along a synthetic route and publish
+   * pings on the mock clock (every PING_RULES.intervalSeconds). Default false (tests use dev.pingTick).
+   */
+  simulateMovement?: boolean;
 }
 
 // ---------------------------------------------------------------------------

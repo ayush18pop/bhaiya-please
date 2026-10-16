@@ -10,6 +10,7 @@ import { attestationService } from './attestations';
 import { complaintService } from './complaints';
 import type { ServiceContext } from './context';
 import { handoffService } from './handoff';
+import { locationService } from './locations';
 import { receiptService } from './receipts';
 import { requestService } from './requests';
 import { loadProfile } from './reputation';
@@ -54,6 +55,7 @@ export function createDomain(ctx: ServiceContext, opts: DomainOptions): BhaiyaPl
     ...receipts,
     ...complaints,
     ...attestations,
+    ...locationService(ctx),
 
     getProfile: (address: Address): Promise<Profile> =>
       loadProfile(ctx, port, parseOrThrow(addressSchema, address, 'address')),

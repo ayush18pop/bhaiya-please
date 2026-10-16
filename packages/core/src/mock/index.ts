@@ -12,6 +12,8 @@ import { MockChain } from './chain';
 import type { KVStorage } from './chain';
 import { buildFixturePlan, PERSONA, runFixturePlan } from './fixtures';
 import type { FixturePersona } from './fixtures';
+import { createMovementSim } from './movement';
+import type { BhaiyaPlease } from '../interface';
 
 export { buildFixturePlan, runFixturePlan, PERSONA } from './fixtures';
 export type { FixturePlan, FixturePersona, FixtureEnv } from './fixtures';
@@ -97,6 +99,22 @@ export const createMockBhaiyaPlease: CreateMockBhaiyaPlease = (config: MockConfi
 
   ready = start(false);
 
+  // Live location: seeded runners' live runs move and ping (see movement.ts).
+  const simDomains = new Map<Address, BhaiyaPlease>();
+  const sim = createMovementSim(
+    [PERSONA.runnerTrusted, PERSONA.runnerVerified, PERSONA.runnerNew].map(mockAddressOf),
+    (a) => {
+      let d = simDomains.get(a);
+      if (!d) {
+        d = createDomain(ctxFor(chain.port(() => a, () => ready)), { resolveIntervalMs: 0 });
+        simDomains.set(a, d);
+      }
+      return d;
+    },
+    () => chain.now(),
+  );
+  if (config.simulateMovement) sim.start();
+
   const dev: MockBhaiyaPlease['dev'] = {
     advance: (seconds) => chain.advance(seconds),
     setAddress: (a) => {
@@ -106,6 +124,7 @@ export const createMockBhaiyaPlease: CreateMockBhaiyaPlease = (config: MockConfi
       chain.reset();
       ready = reseed ? start(true) : Promise.resolve();
     },
+    pingTick: () => sim.tick(),
   };
 
   const closeDomain = domain.close;
@@ -113,6 +132,7 @@ export const createMockBhaiyaPlease: CreateMockBhaiyaPlease = (config: MockConfi
   return Object.assign(domain, {
     dev,
     close: () => {
+      sim.stop();
       closeDomain();
       chain.dispose();
     },
@@ -122,3 +142,5 @@ export const createMockBhaiyaPlease: CreateMockBhaiyaPlease = (config: MockConfi
 // Light helpers for clients that import only the mock entry (no SDK): one wire format, one zone list.
 export { encodeHandoffQR, decodeHandoffQR, encodeAddressQR, decodeAddressQR } from '../codec/handoff';
 export { DEMO_ZONES } from '../zones';
+export * from '../geo';
+export { PING_RULES } from '../types';
