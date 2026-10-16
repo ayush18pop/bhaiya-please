@@ -10,8 +10,8 @@
  * Needs the same .env as the seed (SEED_PRIVATE_KEY). Runners must already be seeded; wallets are
  * topped up from the seed wallet when low. Synthetic data only; prints addresses/keys of nothing.
  */
-import { DEMO_ZONES } from '@bhaiya-please/core';
-import type { BhaiyaPlease, Zone } from '@bhaiya-please/core';
+import { coarsenToGh7, DEMO_ZONES, PING_RULES, simulatedPosition } from '@bhaiya-please/core';
+import type { BhaiyaPlease, EntityKey, Zone } from '@bhaiya-please/core';
 import {
   BhaiyaPleaseError,
   errorText,
@@ -31,6 +31,8 @@ const RUNNERS = [PERSONA_IDS.runnerTrusted, PERSONA_IDS.runnerVerified, PERSONA_
 const NOTES = ['Heading back from the market', 'Passing the main road shops', 'Return trip, can pick up 1-2 items', undefined];
 /** Skip a runner that already has this many live runs (cron overlap). */
 const MAX_LIVE_PER_RUNNER = 2;
+/** Live-location pings per announced run per invocation (gas budget: tiny 2-min entities). */
+const PINGS_PER_RUN = 6;
 
 const pick = <T>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)] as T;
 const between = (lo: number, hi: number) => lo + Math.floor(Math.random() * (hi - lo + 1));
@@ -47,10 +49,14 @@ async function main(): Promise<void> {
   const howMany = between(2, 3);
   const chosen = [...RUNNERS].sort(() => Math.random() - 0.5).slice(0, howMany);
   let announced = 0;
+  const moving: { id: string; d: BhaiyaPlease; key: EntityKey }[] = [];
   for (const id of chosen) {
     const d = await openPersona(env, id);
+    let keep = false;
     try {
-      const mine = await d.getMyRuns();
+      // Only runs still open on the board count (full or departed runs linger until ETA + 10 min).
+      const now = Date.now() / 1000;
+      const mine = (await d.getMyRuns()).filter((r) => r.eta > now && r.capacityLeft > 0);
       if (mine.length >= MAX_LIVE_PER_RUNNER) {
         log(`${id}: already has ${mine.length} live runs, skipping`);
         continue;
@@ -66,10 +72,12 @@ async function main(): Promise<void> {
       });
       announced++;
       log(`${id}: announced run ${r.key} (tx ${r.txHash})`);
+      moving.push({ id, d, key: r.key });
+      keep = true;
     } catch (e) {
       log(`${id}: announce failed: ${errorText(e)}`);
     } finally {
-      d.close();
+      if (!keep) d.close();
     }
   }
 
@@ -90,7 +98,26 @@ async function main(): Promise<void> {
     resident.close();
   }
 
-  log(`done: ${announced} run(s) announced`);
+  // Live location: a short burst of coarse pings along each run's synthetic route (see core geo.ts).
+  // Each ping deletes itself after 2 min, so judges see riders move for a few minutes per cron tick.
+  let pinged = 0;
+  const runs = await Promise.all(moving.map(async (m) => ({ ...m, run: await m.d.getRun(m.key).catch(() => null) })));
+  for (let i = 0; i < PINGS_PER_RUN && runs.length > 0; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, PING_RULES.intervalSeconds * 1000));
+    for (const { id, d, run } of runs) {
+      if (!run) continue;
+      const s = simulatedPosition(run, Math.floor(Date.now() / 1000));
+      try {
+        await d.publishPing(run.key, coarsenToGh7(s.pos.lat, s.pos.lng), { seq: i, heading: Math.round(s.heading) % 360, speedKmh: Math.round(s.speedKmh) });
+        pinged++;
+      } catch (e) {
+        log(`${id}: ping ${i} failed: ${errorText(e)}`);
+      }
+    }
+  }
+  for (const m of moving) m.d.close();
+
+  log(`done: ${announced} run(s) announced, ${pinged} ping(s) sent`);
   if (announced === 0) process.exitCode = 1;
 }
 

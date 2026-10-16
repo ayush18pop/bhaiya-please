@@ -9,6 +9,7 @@ import { tiramisu } from '@arkiv-network/sdk/chains';
 import { BhaiyaPleaseError, createBhaiyaPlease, DEFAULT_RPC_URL } from '@bhaiya-please/core';
 import type { Address, BhaiyaPlease } from '@bhaiya-please/core';
 import { concat, createPublicClient, createWalletClient, formatEther, http, keccak256, parseEther, stringToHex } from 'viem';
+import type { Transport } from 'viem';
 import type { Hex } from 'viem';
 import { nonceManager, privateKeyToAccount } from 'viem/accounts';
 
@@ -113,8 +114,9 @@ export const personaAddress = (env: Env, personaId: string): Address =>
 
 export const seedAddress = (env: Env): Address => privateKeyToAccount(env.seedKey).address.toLowerCase() as Address;
 
-export function rpcUrl(env: Env): string {
-  return env.accessKey ? `${env.rpcUrl}/${encodeURIComponent(env.accessKey)}` : env.rpcUrl;
+/** Access key in the X-API-KEY header (same as core), never in the URL, so error text cannot echo it. */
+export function rpcTransport(env: Env): Transport {
+  return env.accessKey ? http(env.rpcUrl, { fetchOptions: { headers: { 'X-API-KEY': env.accessKey } } }) : http(env.rpcUrl);
 }
 
 /** Real core instance acting as `personaId`; the verifier is the only trusted verifier. */
@@ -130,7 +132,7 @@ export function openPersona(env: Env, personaId: string): Promise<BhaiyaPlease> 
 // ------------------------------------------------------------------ funding
 
 export function chainClients(env: Env) {
-  const transport = http(rpcUrl(env));
+  const transport = rpcTransport(env);
   const account = privateKeyToAccount(env.seedKey, { nonceManager });
   return {
     pub: createPublicClient({ chain: tiramisu, transport }),

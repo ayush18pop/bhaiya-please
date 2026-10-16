@@ -5,6 +5,9 @@
  *
  *   pnpm seed            seed (skips if already seeded)
  *   pnpm seed -- --force run the plan even if seed data is detected (counts will exceed the plan)
+ *   pnpm seed -- --resume continue an interrupted seed: skips shops/attestations that exist and,
+ *                        per runner, the handoffs already on chain (receipts + complaints owned/
+ *                        filed so far form a prefix of that runner's handoffs, which run in order)
  *   pnpm seed -- --dry   derive and print addresses only; no chain access
  *
  * Needs .env (repo root): SEED_PRIVATE_KEY funded on Tiramisu. Prints addresses only, never keys.
@@ -43,6 +46,61 @@ const SETTLE_MS = 2500;
 const RETRIES = 4;
 
 const force = process.argv.includes('--force');
+const resume = process.argv.includes('--resume');
+/** Placeholder key returned for a skipped (already seeded) handoff; every later step of it is a no-op. */
+const SKIP = `0x${'00'.repeat(31)}5e` as EntityKey;
+
+interface ResumeState {
+  /** Remaining handoffs to skip, per runner address. */
+  skip: Map<string, number>;
+  shops: Map<string, EntityKey>; // `${lister}|${nameTag}` -> key
+  attested: Set<string>; // `${verifier}|${subject}`
+}
+
+/** Resume: short-circuits work that is already on chain (see header). */
+function resumable(base: BhaiyaPlease, st: ResumeState): BhaiyaPlease {
+  const me = (base.address ?? '').toLowerCase();
+  return new Proxy(base, {
+    get(target, prop) {
+      const v = Reflect.get(target, prop, target) as unknown;
+      if (typeof v !== 'function') return v;
+      const call = (...a: unknown[]) => (v as (...x: unknown[]) => unknown).apply(target, a);
+      switch (prop) {
+        case 'listShop':
+          return async (i: { nameTag: string }) => {
+            const k = st.shops.get(`${me}|${i.nameTag}`);
+            return k ? { key: k, txHash: SKIP } : call(i);
+          };
+        case 'issueAttestation':
+          return async (i: { subject: string }) =>
+            st.attested.has(`${me}|${i.subject.toLowerCase()}`) ? { key: SKIP, txHash: SKIP } : call(i);
+        case 'announceRun':
+          return async (i: unknown) => {
+            const n = st.skip.get(me) ?? 0;
+            // Live runs (capacity > 1) are never skipped; history runs use capacity 1.
+            if (n > 0 && (i as { capacity: number }).capacity === 1) {
+              st.skip.set(me, n - 1);
+              return { key: SKIP, txHash: SKIP };
+            }
+            return call(i);
+          };
+        case 'postRequest':
+          return async (i: { runKey: string }) =>
+            i.runKey === SKIP ? { key: SKIP, txHash: SKIP, secret: { requestKey: SKIP, code: '0000', salt: `0x${'00'.repeat(16)}` } } : call(i);
+        case 'acceptRequest':
+          return async (k: string) => (k === SKIP ? { key: SKIP, txHash: SKIP } : call(k));
+        case 'recordDelivery':
+          return async (i: { secret: { requestKey: string } }) => (i.secret.requestKey === SKIP ? { key: SKIP, txHash: SKIP } : call(i));
+        case 'issueReceipt':
+          return async (i: { deliveryKey: string }) => (i.deliveryKey === SKIP ? { key: SKIP, txHash: SKIP, path: 'batch' } : call(i));
+        case 'fileComplaint':
+          return async (i: { requestKey: string }) => (i.requestKey === SKIP ? { key: SKIP, txHash: SKIP } : call(i));
+        default:
+          return (v as (...x: unknown[]) => unknown).bind(target);
+      }
+    },
+  });
+}
 const dry = process.argv.includes('--dry');
 const env = loadEnvOrExit('seed');
 const redact = makeRedactor(env);
@@ -115,11 +173,12 @@ async function main(): Promise<void> {
   for (const p of plan.personas) domains.set(p.id, await openPersona(env, p.id));
   const confirmed = new Map<string, unknown>();
   const wrapped = new Map<string, BhaiyaPlease>();
+  let resumeState: ResumeState | null = null;
   const as = (id: string): BhaiyaPlease => {
     const d = domains.get(id);
     if (!d) throw new Error(`unknown persona ${id}`);
     let w = wrapped.get(id);
-    if (!w) wrapped.set(id, (w = settled(d, confirmed)));
+    if (!w) wrapped.set(id, (w = settled(resumeState ? resumable(d, resumeState) : d, confirmed)));
     return w;
   };
 
@@ -137,9 +196,13 @@ async function main(): Promise<void> {
       printTable();
       return;
     }
-    if (!force && (issued.length > 0 || profile.receiptsTotal > 0)) {
+    if (resume) {
+      resumeState = await buildResumeState(plan, domains);
+      wrapped.clear();
+      log(`\nResuming: skipping ${[...resumeState.skip.entries()].map(([a, n]) => `${a.slice(0, 8)}…:${n}`).join(', ')} handoffs, ${resumeState.shops.size} shops, ${resumeState.attested.size} attestations already on chain.`);
+    } else if (!force && (issued.length > 0 || profile.receiptsTotal > 0)) {
       log(`\nPartial seed detected (${issued.length} attestations, ${profile.receiptsTotal}/${expectedTrusted} trusted-runner receipts).`);
-      log('Re-running the plan would add duplicates. Re-run with --force to continue anyway (counts will exceed the plan),');
+      log('Re-running the plan would add duplicates. Re-run with --resume to continue where it stopped, or --force to replay everything (counts will exceed the plan),');
       log('or leave it: the heartbeat and the app work with whatever exists.');
       printTable();
       process.exit(1);
@@ -183,3 +246,21 @@ main().catch((e) => {
   }
   process.exit(1);
 });
+
+async function buildResumeState(plan: ReturnType<typeof buildFixturePlan>, domains: Map<string, BhaiyaPlease>): Promise<ResumeState> {
+  const st: ResumeState = { skip: new Map(), shops: new Map(), attested: new Set() };
+  const d = (id: string) => domains.get(id) as BhaiyaPlease;
+  const zones5 = [...new Set(plan.shops.map((x) => x.zone.slice(0, 5)))];
+  for (const z of zones5) {
+    for (const shop of await d(PERSONA_IDS.residentDemo).getShops(z)) st.shops.set(`${shop.creator}|${shop.nameTag}`, shop.key);
+  }
+  for (const a of await d(PERSONA_IDS.verifier).getMyIssuedAttestations()) st.attested.add(`${a.creator}|${a.subject}`);
+  const residents = new Set(plan.personas.filter((p) => p.role === 'resident').map((p) => personaAddress(env, p.id)));
+  for (const id of [PERSONA_IDS.runnerTrusted, PERSONA_IDS.runnerVerified, PERSONA_IDS.runnerNew]) {
+    const a = personaAddress(env, id);
+    const [receipts, complaints] = await Promise.all([d(id).getReceiptsFor(a), d(id).getComplaintsAgainst(a)]);
+    const done = receipts.filter((r) => residents.has(r.receipt.creator)).length + complaints.filter((c) => residents.has(c.creator)).length;
+    st.skip.set(a, done);
+  }
+  return st;
+}
