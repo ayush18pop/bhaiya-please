@@ -51,6 +51,10 @@ export const sandboxCopy = defineCopy({
       onTime: 'real time',
       narrow: 'The split view needs a wider window. Make the window wider, or explore one phone at a time.',
       openPhone: 'Explore on one phone',
+      triggersTitle: 'Alerts: Arkiv Triggers',
+      triggersBody:
+        'Phones don’t keep checking for news. When the resident sends a request, their phone saves small “tell me when it’s accepted” alerts that delete themselves with the request. An alert service watches them, sends the push, and saves a signed receipt anyone can check. Here it runs inside each phone. It also saves proof if a runner accepts and never shows up.',
+      triggersFired: '{n} alert{s} fired so far',
     },
     coach: {
       title: 'Guided tour',

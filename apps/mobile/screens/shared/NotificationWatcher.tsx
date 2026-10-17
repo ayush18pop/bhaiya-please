@@ -41,7 +41,7 @@ interface MineRow {
 }
 
 /** The resident's recent requests with everything the watcher needs (one query, 5 s polling). */
-function useMine() {
+export function useMine() {
   const core = useCore();
   const { address } = useSession();
   return useQuery<MineRow[]>({

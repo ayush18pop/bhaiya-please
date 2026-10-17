@@ -1,0 +1,28 @@
+{
+  "name": "@arkiv-triggers/worker",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Arkiv Triggers worker: runs the trigger engine against Arkiv and delivers Web Push, Expo push and webhooks.",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "vapid": "tsx src/vapid.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@arkiv-triggers/core": "workspace:*",
+    "@bhaiya-please/core": "workspace:*",
+    "tsx": "^4.23.15",
+    "viem": "2.57.7",
+    "web-push": "^3.6.7",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/web-push": "^3.6.4",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

@@ -1,0 +1,35 @@
+# Render Blueprint for the Arkiv Triggers worker (https://render.com/docs/blueprint-spec).
+# Point Render at this file (Blueprint path: packages/triggers-worker/render.yaml).
+# Persistent disk => channels and the seen set survive deploys. Secrets are set in the dashboard.
+services:
+  - type: web
+    name: arkiv-triggers-worker
+    runtime: docker
+    plan: starter # persistent disks need a paid instance
+    dockerfilePath: ./packages/triggers-worker/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    numInstances: 1 # one instance per data disk; run more workers as separate services
+    disk:
+      name: triggers-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: TRIGGERS_DATA_DIR
+        value: /data
+      - key: TRIGGERS_POLL_MS
+        value: "10000"
+      - key: ARKIV_RPC_URL
+        value: https://rpc.tiramisu.db-chain.testnet.arkiv.network
+      - key: TRIGGERS_ALLOWED_ORIGINS
+        sync: false # e.g. https://your-app.vercel.app
+      - key: TRIGGERS_WORKER_PRIVATE_KEY
+        sync: false # test wallet only; fund its address with `pnpm fund <address>`
+      - key: ARKIV_ACCESS_KEY
+        sync: false
+      - key: TRIGGERS_VAPID_PUBLIC
+        sync: false # from `pnpm triggers:vapid`
+      - key: TRIGGERS_VAPID_PRIVATE
+        sync: false
+      - key: TRIGGERS_VAPID_SUBJECT
+        sync: false # mailto:you@example.com

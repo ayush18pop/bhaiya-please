@@ -1,16 +1,78 @@
 /**
  * D7 Notifications: in-app inbox grouped by day. Unread rows carry a coral bar; opening the screen marks
  * everything read (the bars stay for this visit so you can see what was new). Rows link to the screen.
+ * Rows that came from an alert (Arkiv Triggers) say "via Arkiv Trigger" and open the alert's signed
+ * receipt: plain words first, IDs under Advanced.
  */
 import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Linking, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Crowd, Screen, Text, TextButton } from '@/components/bp';
-import { useCopy } from '@/lib/i18n';
-import { markAllRead, useNotifs, type Notif } from '@/lib/notifications';
+import { Check, ChevronDown, ExternalLink, Radio } from 'lucide-react-native';
+import type { EntityKey } from '@bhaiya-please/core';
+import { Animated, Crowd, FadeIn, Icon, Screen, Sheet, Text, TextButton, useReducedMotion } from '@/components/bp';
+import { useSession } from '@/components/providers';
+import { useInspect } from '@/hooks/queries';
+import { aliasFor } from '@/lib/alias';
+import { copyText } from '@/lib/clipboard';
+import { fill, useCopy } from '@/lib/i18n';
+import { markAllRead, useNotifs, type AlertReceipt, type Notif } from '@/lib/notifications';
+import { useChannel } from '@/lib/triggers';
 import { cn } from '@/lib/utils';
 import { sharedCopy } from '@/screens/shared/copy';
-import { timeOf, Rise } from '@/screens/shared/parts';
+import { dayTime, timeOf, Rise } from '@/screens/shared/parts';
+
+/** The alert's receipt in plain words; record IDs and the block only under Advanced. */
+function FiringSheet({ r, onClose }: { r: AlertReceipt | null; onClose: () => void }) {
+  const c = useCopy(sharedCopy).firing;
+  const reduce = useReducedMotion();
+  const [open, setOpen] = useState(false);
+  const inspect = useInspect((r?.receipt ?? undefined) as EntityKey | undefined, !!r?.receipt && open);
+  useEffect(() => setOpen(false), [r?.receipt, r?.trigger]);
+  const row = (label: string, value: string) => (
+    <Pressable key={label} onPress={() => copyText(value, `${label} copied`)} accessibilityRole="button" accessibilityLabel={`${label}. Copy`} className="gap-0.5 py-1 active:opacity-70">
+      <Text className="text-[13px] font-semibold text-muted">{label}</Text>
+      <Text selectable className="text-[14px] leading-[19px]" style={{ fontFamily: 'monospace' }}>
+        {value}
+      </Text>
+    </Pressable>
+  );
+  return (
+    <Sheet open={!!r} onClose={onClose} title={c.title} scroll>
+      {r ? (
+        <>
+          <Text className="text-[15px] leading-[21px] text-muted">{c.body}</Text>
+          <View className="gap-2 rounded-block border-2 border-line bg-surface p-3.5">
+            <View className="flex-row items-center gap-2.5">
+              <Icon as={Check} size={20} strokeWidth={3} className={r.outcome === 'failed' ? 'text-mirchi' : 'text-go'} />
+              <Text className="flex-1 text-[16px] font-bold">{c.outcome[r.outcome]}</Text>
+            </View>
+            <Text className="text-[15px]">{fill(c.checkedAt, { time: dayTime(r.at) })}</Text>
+            <Text className="text-[15px]">{fill(c.by, { name: aliasFor(r.worker) })}</Text>
+          </View>
+          <View className="border-t-2 border-line pt-1.5">
+            <Pressable onPress={() => setOpen((x) => !x)} accessibilityRole="button" accessibilityState={{ expanded: open }} className="min-h-[44px] flex-row items-center justify-between active:opacity-70">
+              <Text className="text-[16px] font-bold">{c.advanced}</Text>
+              <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}>
+                <Icon as={ChevronDown} size={20} />
+              </View>
+            </Pressable>
+            {open ? (
+              <Animated.View entering={reduce ? undefined : FadeIn.duration(150)} className="gap-1.5 pb-1">
+                {r.receipt ? row(c.receiptId, r.receipt) : null}
+                {row(c.trigger, r.trigger)}
+                {row(c.entity, r.entity)}
+                {row(c.event, r.event)}
+                {row(c.worker, r.worker)}
+                {r.block ? row(c.block, r.block) : null}
+                {inspect.data?.explorerUrl ? <TextButton label={c.explorer} tone="yellow" icon={ExternalLink} onPress={() => Linking.openURL(inspect.data!.explorerUrl!)} /> : null}
+              </Animated.View>
+            ) : null}
+          </View>
+        </>
+      ) : null}
+    </Sheet>
+  );
+}
 
 function dayKey(unix: number) {
   const d = new Date(unix * 1000);
@@ -20,6 +82,10 @@ function dayKey(unix: number) {
 export default function Notifications() {
   const router = useRouter();
   const c = useCopy(sharedCopy).notifs;
+  const via = useCopy(sharedCopy).firing.via;
+  const { address } = useSession();
+  const channel = useChannel(address);
+  const [receipt, setReceipt] = useState<AlertReceipt | null>(null);
   const list = useNotifs();
   const [unread, setUnread] = useState(() => new Set(list.filter((n) => !n.read).map((n) => n.id)));
   useEffect(() => {
@@ -76,6 +142,17 @@ export default function Notifications() {
                       <Text className="text-[12px] text-muted">{timeOf(n.at)}</Text>
                     </View>
                     {n.body ? <Text className="text-[14px] leading-[19px] text-muted">{n.body}</Text> : null}
+                    {n.alert ? (
+                      <Pressable
+                        onPress={() => setReceipt(n.alert!)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${via}. ${c.receiptOpen}`}
+                        hitSlop={8}
+                        className="mt-1 flex-row items-center gap-1.5 self-start active:opacity-70">
+                        <Icon as={Radio} size={14} className="text-yellow" />
+                        <Text className="text-[13px] font-bold text-yellow underline">{via}</Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                 </Pressable>
               </Rise>
@@ -83,7 +160,11 @@ export default function Notifications() {
           </View>
         ))
       )}
-      <Text className="mt-3 text-center text-[13px] text-muted">{c.note}</Text>
+      <View className="mt-3 items-center gap-1">
+        <Text className="text-center text-[13px] text-muted">{channel ? c.notePush : c.note}</Text>
+        {!channel ? <TextButton label={c.pushCta} tone="yellow" onPress={() => router.push('/settings/notifications')} /> : null}
+      </View>
+      <FiringSheet r={receipt} onClose={() => setReceipt(null)} />
     </Screen>
   );
 }

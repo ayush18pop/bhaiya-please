@@ -187,7 +187,7 @@ export function requestService(ctx: ServiceContext) {
 }
 
 /** The runner's own Accept for this request on this run (earliest wins), or null. */
-async function acceptFor(r: Reader, request: Request, run: Run): Promise<Accept | null> {
+export async function acceptFor(r: Reader, request: Request, run: Run): Promise<Accept | null> {
   const accepts = await r.list('accept', decode.accept, [{ op: 'eq', name: 'request', value: attr('request', request.key) }], {
     creator: run.creator,
   });

@@ -90,7 +90,7 @@ function OwnProfile() {
   const valid = useMemo(() => (receipts.data ?? []).filter((r) => r.valid), [receipts.data]);
   const crowd = useMemo(() => [...new Set(valid.map((r) => r.receipt.creator))], [valid]);
   const backedUp = !!(address && prefs.backedUp[address]);
-  const hasRep = !!p && (p.receiptsTotal > 0 || p.attestations.length > 0 || p.complaints.length > 0);
+  const hasRep = !!p && (p.receiptsTotal > 0 || p.attestations.length > 0 || p.complaints.length > 0 || p.noShows.length > 0);
   const showRep = mode === 'run' || hasRep;
   const activeVouches = (issued.data ?? []).filter((a) => a.expiresAt > now).length;
   if (!address) return null;
@@ -132,7 +132,7 @@ function OwnProfile() {
                     <Vouches list={p.attestations} />
                   </Rise>
                   <Rise index={4}>
-                    <Reports list={p.complaints} now={now} />
+                    <Reports list={p.complaints} now={now} noShows={p.noShows} />
                   </Rise>
                   <Rise index={5}>{receipts.data ? <RecentReceipts list={receipts.data} own /> : <SkeletonCards n={1} kind="row" />}</Rise>
                   <Rise index={6}>

@@ -36,7 +36,9 @@ export type EntityType =
   | 'complaint'
   | 'decline'
   // live location (see "Live location" below)
-  | 'ping';
+  | 'ping'
+  // no-show evidence (written by anyone, e.g. an Arkiv Triggers worker; trusted only after re-verification)
+  | 'noshow';
 
 /** Arkiv system attributes, surfaced on every domain object. Unforgeable. */
 export interface EntityMeta {
@@ -141,7 +143,8 @@ export interface Receipt extends EntityMeta {
   tags: ReceiptTag[];
 }
 
-export type ComplaintReason = 'no_show' | 'wrong_item' | 'rude';
+/** no_show needs verified noshow evidence; wrong_item, rude and other need the rider's recorded delivery. */
+export type ComplaintReason = 'no_show' | 'wrong_item' | 'rude' | 'other';
 
 export interface Complaint extends EntityMeta {
   rider: Address;
@@ -160,6 +163,45 @@ export interface Attestation extends EntityMeta {
   at: UnixSeconds;
   /** Computed by the viewer: creator ∈ config.trustedVerifiers. */
   trusted: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// No-show evidence (Arkiv Triggers, docs/TRIGGERS.md §4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Claim "at block `block`, the request had a valid Accept by `rider`, the run's ETA had passed and no
+ * valid Delivery existed". Anyone may write it ($creator is typically an Arkiv Triggers worker); it is
+ * trusted ONLY after verifyNoShow re-reads the chain at `block`.
+ */
+export interface NoShow extends EntityMeta {
+  request: EntityKey;
+  run: EntityKey;
+  rider: Address;
+  accept: EntityKey;
+  /** Block the claim was evaluated at (u64). */
+  block: bigint;
+  /** Writer-declared unix time of `block`. */
+  at: UnixSeconds;
+}
+
+export type NoShowInvalidReason =
+  | 'request_missing' // request not live at `block`, or noshow.run disagrees with it
+  | 'run_missing' // run not live / not trusted at `block`
+  | 'accept_missing' // accept not live at `block`, or not the runner's own accept for this request/run
+  | 'rider_mismatch' // noshow.rider ≠ accept.rider / run.$creator
+  | 'before_eta' // block time < run.eta
+  | 'delivered' // a valid Delivery for the request existed at `block`
+  | 'delivered_later' // the rider recorded a valid Delivery afterwards (late handoff cancels the no-show)
+  | 'duplicate' // another valid noshow already covers this request
+  | 'history_unavailable'; // the chain/mock could not serve a read at `block`
+
+export type NoShowVerification = { valid: true } | { valid: false; reason: NoShowInvalidReason };
+
+export interface VerifiedNoShow {
+  noshow: NoShow;
+  valid: boolean;
+  reason?: NoShowInvalidReason;
 }
 
 // ---------------------------------------------------------------------------
@@ -263,6 +305,10 @@ export interface Profile {
   invalidReceipts: number;
   complaints: Complaint[];
   complaints30d: number;
+  /** Verified no-shows (valid only, one per request), newest first. */
+  noShows: NoShow[];
+  /** Verified no-shows created in the last 30 d ($createdAt). */
+  noShows30d: number;
   attestations: Attestation[];
   /** True if any attestation from a trusted verifier is live. */
   verified: boolean;

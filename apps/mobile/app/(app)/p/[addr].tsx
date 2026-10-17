@@ -58,7 +58,7 @@ function PublicProfile({ address }: { address: `0x${string}` }) {
               <Vouches list={p.attestations} />
             </Rise>
             <Rise index={3}>
-              <Reports list={p.complaints} now={now} />
+              <Reports list={p.complaints} now={now} noShows={p.noShows} />
             </Rise>
             <Rise index={4}>{receipts.data ? <RecentReceipts list={receipts.data} own={false} /> : <SkeletonCards n={1} kind="row" />}</Rise>
           </>

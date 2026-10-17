@@ -48,7 +48,7 @@ export const receiptTagsSchema = z
   .array(receiptTagSchema)
   .max(5)
   .refine((tags) => new Set(tags).size === tags.length, 'duplicate tags');
-export const complaintReasonSchema = z.enum(['no_show', 'wrong_item', 'rude']);
+export const complaintReasonSchema = z.enum(['no_show', 'wrong_item', 'rude', 'other']);
 export const attestationLevelSchema = z.enum(['id_checked', 'resident', 'successor']);
 export const tierLevelSchema = z.union([z.literal(0), z.literal(1), z.literal(2)]);
 
@@ -74,6 +74,7 @@ export const A = {
   rupees: cell('i32', rupeesSchema),
   capacity: cell('i32', z.number().int().min(0).max(MAX_CAPACITY)),
   tier: cell('i32', tierLevelSchema),
+  block: cell('u64', z.bigint().min(0n)),
 };
 
 export const attrSchemas = {
@@ -116,6 +117,7 @@ export const attrSchemas = {
     reason: A.str(complaintReasonSchema),
     at: A.unix,
   }),
+  noshow: z.object({ request: A.key, run: A.key, rider: A.addr, accept: A.key, block: A.block, at: A.unix }),
 };
 
 export const payloadSchemas = {

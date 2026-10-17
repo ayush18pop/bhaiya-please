@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
-import { BadgeCheck, ChevronRight, FileText, HelpCircle, Info, LogOut, QrCode, ShieldCheck } from 'lucide-react-native';
+import { BadgeCheck, BellRing, ChevronRight, FileText, HelpCircle, Info, LogOut, QrCode, ShieldCheck } from 'lucide-react-native';
 import {
   Avatar, Button, Chip, ConfirmSheet, Field, Icon, ListGroup, ListRow, MelaLights, NamePlate, Screen, Sheet, Sink, Switch, Text,
 } from '@/components/bp';
@@ -18,6 +18,7 @@ import { haptic } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import { sharedCopy } from '@/screens/shared/copy';
 import { loadNotifPrefs, saveNotifPrefs, type NotifPrefs } from '@/screens/shared/parts';
+import { useChannel } from '@/lib/triggers';
 
 function ToggleRow({ label, hint, value, onChange, last }: { label: string; hint?: string; value: boolean; onChange: (v: boolean) => void; last?: boolean }) {
   return (
@@ -82,6 +83,8 @@ export default function Settings() {
   const backedUp = !!(address && prefs.backedUp[address]);
   const version = Constants.expoConfig?.version ?? '1.0.0';
   const name = address ? aliasFor(address) : '';
+  const channel = useChannel(address);
+  const a = useCopy(sharedCopy).alerts;
 
   return (
     <Screen title={c.title} contentClassName="gap-[18px] pb-10">
@@ -100,6 +103,9 @@ export default function Settings() {
       </View>
 
       <ListGroup title={c.notifications}>
+        {!guest ? (
+          <ListRow icon={BellRing} label={a.settingsRow} right={<Text className="text-[15px] text-muted">{channel ? a.pushOn : a.pushOff}</Text>} onPress={() => router.push('/settings/notifications')} />
+        ) : null}
         <ToggleRow label={c.nAccepted} value={np.accepted} onChange={setN('accepted')} />
         <ToggleRow label={c.nGate} value={np.gate} onChange={setN('gate')} />
         <ToggleRow label={c.nHere} value={prefs.notifyMe} onChange={(v) => setPrefs({ notifyMe: v })} />

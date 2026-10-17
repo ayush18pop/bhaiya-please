@@ -11,12 +11,14 @@
   "scripts": {
     "dev": "pnpm --filter mobile web",
     "build:web": "pnpm --filter mobile build:web",
-    "test": "pnpm --filter @bhaiya-please/core test",
+    "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r typecheck",
     "spike": "pnpm --filter @bhaiya-please/spike spike",
     "seed": "pnpm --filter @bhaiya-please/seed seed",
     "heartbeat": "pnpm --filter @bhaiya-please/seed heartbeat",
     "fund": "pnpm --filter @bhaiya-please/seed fund",
-    "live-check": "pnpm --filter @bhaiya-please/seed live-check"
+    "live-check": "pnpm --filter @bhaiya-please/seed live-check",
+    "triggers:worker": "pnpm --filter @arkiv-triggers/worker start",
+    "triggers:vapid": "pnpm --silent --filter @arkiv-triggers/worker vapid"
   }
 }

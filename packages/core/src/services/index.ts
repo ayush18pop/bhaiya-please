@@ -5,12 +5,14 @@ import { addressSchema, keySchema } from '../codec/schemas';
 import { parseOrThrow } from '../codec/validate';
 import type { BhaiyaPlease } from '../interface';
 import { BhaiyaPleaseError } from '../types';
-import type { Address, EntityInspection, EntityKey, Profile } from '../types';
+import type { Address, EntityInspection, EntityKey, NoShow, NoShowVerification, Profile, VerifiedNoShow } from '../types';
 import { attestationService } from './attestations';
 import { complaintService } from './complaints';
+import { reader } from './context';
 import type { ServiceContext } from './context';
 import { handoffService } from './handoff';
 import { locationService } from './locations';
+import { loadNoShowsFor, loadNoShowsForRequest, pickForRequest, verifyNoShowEvidence } from './noshow';
 import { receiptService } from './receipts';
 import { requestService } from './requests';
 import { loadProfile } from './reputation';
@@ -36,6 +38,7 @@ export function createDomain(ctx: ServiceContext, opts: DomainOptions): BhaiyaPl
     : { resolveIntervalMs: opts.resolveIntervalMs };
   const watcher = createWatcher(ctx.port, ctx.project, watcherOpts);
   const port = ctx.port;
+  const nsOpts = ctx.drop ? { drop: ctx.drop } : {};
 
   return {
     get address() {
@@ -66,6 +69,18 @@ export function createDomain(ctx: ServiceContext, opts: DomainOptions): BhaiyaPl
     },
 
     getBlockNumber: () => port.blockNumber(),
+
+    verifyNoShow: (noshow: NoShow): Promise<NoShowVerification> => verifyNoShowEvidence(port, ctx.project, noshow, nsOpts),
+
+    getNoShowsFor: (rider: Address): Promise<VerifiedNoShow[]> =>
+      loadNoShowsFor(port, reader(port, ctx.project, ctx.drop), ctx.project, parseOrThrow(addressSchema, rider, 'rider'), nsOpts),
+
+    async getNoShowForRequest(requestKey: EntityKey): Promise<VerifiedNoShow | null> {
+      const k = parseOrThrow(keySchema, requestKey, 'requestKey');
+      return pickForRequest(await loadNoShowsForRequest(port, reader(port, ctx.project, ctx.drop), ctx.project, k, undefined, nsOpts));
+    },
+
+    arkivPort: () => port,
 
     async inspect(key: EntityKey): Promise<EntityInspection | null> {
       const raw = await port.get(parseOrThrow(keySchema, key, 'key'));

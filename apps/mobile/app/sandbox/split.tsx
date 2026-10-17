@@ -7,7 +7,7 @@
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, View, useWindowDimensions } from 'react-native';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
-import { ExternalLink, FastForward, Footprints, Lightbulb, RotateCcw, X } from 'lucide-react-native';
+import { BellRing, ExternalLink, FastForward, Footprints, Lightbulb, RotateCcw, X } from 'lucide-react-native';
 import { Button, HardShadow, Icon, IconButton, Meter, Stamp, Switch, Text, TextButton } from '@/components/bp';
 import { useSession } from '@/components/providers';
 import { Rise } from '@/screens/onboarding/parts';
@@ -71,18 +71,19 @@ function StepNav({ steps, step, onGo }: { steps: TourStep[]; step: number; onGo:
   );
 }
 
-function Callout({ title, body, onDismiss, dismissLabel }: { title: string; body: string; onDismiss: () => void; dismissLabel: string }) {
+function Callout({ title, body, onDismiss, dismissLabel, icon = Lightbulb, foot }: { title: string; body: string; onDismiss: () => void; dismissLabel: string; icon?: typeof X; foot?: string }) {
   return (
     <Rise>
       <HardShadow shadow="yellow" className="gap-2.5 rounded-block border-2 border-ink bg-paper p-4">
         <View className="flex-row items-center justify-between">
-          <View className="flex-row items-center gap-2">
-            <Icon as={Lightbulb} size={20} className="text-cng" />
+          <View className="flex-shrink flex-row items-center gap-2">
+            <Icon as={icon} size={20} className="text-cng" />
             <Text className="font-display text-[15px] text-ink">{title}</Text>
           </View>
           <IconButton icon={X} tone="ink" size={40} label={dismissLabel} onPress={onDismiss} />
         </View>
         <Text className="text-[15px] font-semibold leading-[22px] text-ink">{body}</Text>
+        {foot ? <Text className="font-display text-[13px] text-ink">{foot}</Text> : null}
       </HardShadow>
     </Rise>
   );
@@ -139,6 +140,8 @@ export default function SandboxSplit() {
   const [nonce, setNonce] = useState(0);
   const [offsetMin, setOffsetMin] = useState(0);
   const [resetting, setResetting] = useState(false);
+  const [fired, setFired] = useState(0);
+  const [triggersHidden, setTriggersHidden] = useState(false);
   const frames = useRef<Partial<Record<Mode, HTMLIFrameElement | null>>>({});
   const stepRef = useRef(step);
   stepRef.current = step;
@@ -163,6 +166,11 @@ export default function SandboxSplit() {
       if (e.origin !== window.location.origin) return;
       const d = e.data as { bp?: string; type?: string } | null;
       if (!d || d.bp !== 'event') return;
+      if (d.type === 'trigger.fired') {
+        setFired((n) => n + 1);
+        setTriggersHidden(false);
+        return;
+      }
       const cur = steps[stepRef.current];
       if (cur?.done && cur.done === d.type) {
         if (stepRef.current >= steps.length - 1) setFinished(true);
@@ -231,7 +239,24 @@ export default function SandboxSplit() {
   const fw = Math.max(280, Math.min(380, Math.floor((avail - gap * (n - 1)) / n)));
   const fh = Math.max(560, Math.min(780, height - (touring ? 236 : 150)));
   const target = (m: Mode) => touring && !finished && (cur.frame === m || (cur.frame === 'both' && m !== 'desk'));
-  const callout = how && !dismissed[step] ? <Callout title={c.howItWorks} body={cur.how} dismissLabel={c.dismiss} onDismiss={() => setDismissed((d) => ({ ...d, [step]: true }))} /> : null;
+  const stepCallout = how && !dismissed[step] ? <Callout title={c.howItWorks} body={cur.how} dismissLabel={c.dismiss} onDismiss={() => setDismissed((d) => ({ ...d, [step]: true }))} /> : null;
+  const triggersCallout =
+    how && !triggersHidden ? (
+      <Callout
+        icon={BellRing}
+        title={c.triggersTitle}
+        body={c.triggersBody}
+        foot={fired ? fill(c.triggersFired, { n: fired, s: fired === 1 ? '' : 's' }) : undefined}
+        dismissLabel={c.dismiss}
+        onDismiss={() => setTriggersHidden(true)}
+      />
+    ) : null;
+  const callout = (
+    <>
+      {stepCallout}
+      {triggersCallout}
+    </>
+  );
 
   const tourCard = touring ? (
     <View className="gap-3 rounded-block border-2 border-paper bg-raised p-4">

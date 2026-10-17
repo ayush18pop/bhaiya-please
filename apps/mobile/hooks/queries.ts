@@ -1,5 +1,5 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
-import type { Accept, Address, Attestation, Complaint, Decline, Delivery, EntityKey, Ping, Profile, Receipt, Request, Run, Shop, VerifiedReceipt } from '@bhaiya-please/core';
+import type { Accept, Address, VerifiedNoShow, Attestation, Complaint, Decline, Delivery, EntityKey, Ping, Profile, Receipt, Request, Run, Shop, VerifiedReceipt } from '@bhaiya-please/core';
 import { useCore, useSession } from '@/components/providers';
 
 /**
@@ -25,6 +25,7 @@ export const FRESHNESS: Record<string, { refetchInterval: number | false; staleT
   shops: { refetchInterval: 300 * SEC, staleTime: 120 * SEC },
   shop: { refetchInterval: 300 * SEC, staleTime: 120 * SEC },
   inspect: { refetchInterval: false, staleTime: Infinity },
+  noshow: { refetchInterval: 30 * SEC, staleTime: 15 * SEC },
 };
 const DEFAULT_FRESHNESS = { refetchInterval: 60 * SEC, staleTime: 30 * SEC };
 export const freshness = (family: string) => FRESHNESS[family] ?? DEFAULT_FRESHNESS;
@@ -226,4 +227,24 @@ export function useTiers(addrs: Address[]) {
     if (t) out[a] = t;
   });
   return out;
+}
+
+// ------------------------------------------------------------------ no-shows (Arkiv Triggers evidence)
+
+/**
+ * No-show proof for a request: the valid one, else the newest invalid one, else null. Written by the
+ * alert set when the request was accepted; `valid` means it was re-checked against the records.
+ */
+export function useNoShow(requestKey?: string | null, enabled = true) {
+  const core = useCore();
+  return useQ<{ proof: VerifiedNoShow | null; complaint: Complaint | null }>(
+    ['noshow', requestKey],
+    async () => {
+      const proof = await core.getNoShowForRequest(requestKey as EntityKey);
+      // A no-show report has no delivery, so useRequestStatus can't find it: look it up here.
+      const complaint = proof ? ((await core.getComplaintsAgainst(proof.noshow.rider)).find((x) => x.request === requestKey) ?? null) : null;
+      return { proof, complaint };
+    },
+    enabled && !!requestKey,
+  );
 }

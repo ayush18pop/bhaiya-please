@@ -195,10 +195,11 @@ const AFFECTS: Record<string, string[]> = {
   decline: ['reqStatus', 'myRequests', 'runnerBoard', 'runRows'],
   delivery: ['reqStatus', 'myRequests', 'runnerBoard', 'runRows'],
   receipt: ['receipts', 'profile', 'reqStatus'],
-  complaint: ['profile', 'reqStatus'],
+  complaint: ['profile', 'reqStatus', 'noshow'],
   attestation: ['attestations', 'profile', 'issued'],
   shop: ['shops', 'shop'],
   ping: ['pings'],
+  noshow: ['noshow', 'profile'],
 };
 const ALL_FAMILIES = [...new Set(Object.values(AFFECTS).flat())];
 

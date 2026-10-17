@@ -12,6 +12,7 @@ import { CORE_MODE, EXPLORER_URL, FAUCET_URL } from '@/lib/core';
 import { formatEth } from '@/lib/format';
 import { useCopy } from '@/lib/i18n';
 import { sharedCopy } from '@/screens/shared/copy';
+import { CONFIGURED_WORKER_ADDRESS, SANDBOX_TRIGGERS, TRIGGERS_URL, sandboxWorker, useChannel, ZERO_ADDRESS } from '@/lib/triggers';
 
 function Balance() {
   const c = useCopy(sharedCopy).advanced;
@@ -22,6 +23,32 @@ function Balance() {
       <Meter value={bal.data !== undefined ? formatEth(bal.data) : '-.----'} tone={bal.data && bal.data > 0n ? 'money' : 'muted'} size="sm" />
       <Text className="text-[14px] text-muted">{c.balanceHint}</Text>
       <Button label={c.faucet} variant="secondary" size="md" full={false} icon={ExternalLink} onPress={() => Linking.openURL(FAUCET_URL)} />
+    </View>
+  );
+}
+
+/** Arkiv Triggers: which alert service runs this account's alerts, and this phone's channel. */
+function AlertsInfo() {
+  const c = useCopy(sharedCopy).advanced;
+  const { address } = useSession();
+  const channel = useChannel(address);
+  const worker = SANDBOX_TRIGGERS ? (address ? sandboxWorker(address) : '') : CONFIGURED_WORKER_ADDRESS === ZERO_ADDRESS ? c.anyWorker : CONFIGURED_WORKER_ADDRESS;
+  const rows: [string, string][] = [
+    [c.alertService, SANDBOX_TRIGGERS ? c.alertServiceSandbox : TRIGGERS_URL || c.notSet],
+    [c.alertWorker, worker],
+    [c.alertChannel, channel?.id ?? c.notSet],
+  ];
+  return (
+    <View className="gap-2.5 rounded-block border-2 border-line bg-surface p-4">
+      <Text className="text-[14px] font-semibold text-muted">{c.alerts}</Text>
+      {rows.map(([k, v]) => (
+        <View key={k} className="gap-0.5">
+          <Text className="text-[13px] text-muted">{k}</Text>
+          <Text selectable className="text-[14px] leading-[19px]" style={{ fontFamily: 'monospace' }}>
+            {v}
+          </Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -51,8 +78,11 @@ export default function Advanced() {
           {real ? <TextButton label={c.explorer} tone="yellow" icon={ExternalLink} onPress={() => Linking.openURL(address ? `${EXPLORER_URL}/address/${address}` : EXPLORER_URL)} /> : null}
         </View>
       </Rise>
+      <Rise index={2}>
+        <AlertsInfo />
+      </Rise>
       {real ? (
-        <Rise index={2}>
+        <Rise index={3}>
           <Balance />
         </Rise>
       ) : null}

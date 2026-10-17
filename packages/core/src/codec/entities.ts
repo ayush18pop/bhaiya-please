@@ -17,6 +17,7 @@ import type {
   EntityMeta,
   EntityType,
   Hex,
+  NoShow,
   Receipt,
   ReceiptTag,
   Request,
@@ -198,6 +199,27 @@ export const encode = {
     if (i.prev) attrs.prev = attr('prev', i.prev);
     return spec(project, 'attestation', attrs, {}, { readonly: true });
   },
+
+  /** Readonly no-show evidence; trusted only after re-verification at `block` (verifyNoShow). */
+  noshow(
+    project: string,
+    i: { request: EntityKey; run: EntityKey; rider: Address; accept: EntityKey; block: bigint; at: UnixSeconds },
+  ): EntitySpec {
+    return spec(
+      project,
+      'noshow',
+      {
+        request: attr('request', i.request),
+        run: attr('run', i.run),
+        rider: attr('rider', i.rider),
+        accept: attr('accept', i.accept),
+        block: attr('block', i.block),
+        at: attr('at', BigInt(i.at)),
+      },
+      {},
+      { readonly: true },
+    );
+  },
 };
 
 // ------------------------------------------------------------------ decoders
@@ -335,6 +357,17 @@ export const decode = {
       rider: a.rider.value,
       request: a.request.value,
       reason: a.reason.value,
+      at: a.at.value,
+    }), drop),
+
+  noshow: (raw: RawEntity, project: string, drop?: DropSink): NoShow | null =>
+    decodeWith(raw, project, 'noshow', attrSchemas.noshow, payloadSchemas.none, (a, _p, m) => ({
+      ...m,
+      request: a.request.value,
+      run: a.run.value,
+      rider: a.rider.value,
+      accept: a.accept.value,
+      block: a.block.value,
       at: a.at.value,
     }), drop),
 

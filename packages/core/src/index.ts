@@ -18,13 +18,19 @@ export { addressOfKey, decodeKeyExport, encodeKeyExport, generateBurnerKey } fro
 export {
   buildFixturePlan,
   createMockBhaiyaPlease,
+  createMockPort,
   DEFAULT_MOCK_LATENCY_MS,
   MOCK_PERSONAS,
   mockAddressOf,
   PERSONA,
   runFixturePlan,
 } from './mock';
-export type { FixtureEnv, FixturePersona, FixturePlan, MockPersona } from './mock';
+export type { CreateMockPortOptions, FixtureEnv, FixturePersona, FixturePlan, MockArkivPort, MockPersona } from './mock';
+// Companion protocols (Arkiv Triggers): the port surface and no-show evidence. Helpers + the real
+// adapter factory live at '@bhaiya-please/core/port'; createMockPort at '@bhaiya-please/core/mock'.
+export type { ArkivPort, ReadPort, Writer, QueryAst, Predicate, CreateSpec, RawEntity, AttrMap, AttrValue } from './arkiv/port';
+export { buildNoShowEvidence, verifyNoShowEvidence } from './services/noshow';
+export type { NoShowEvidence, NoShowOptions } from './services/noshow';
 export { DEFAULT_RPC_URL } from './arkiv/adapter';
 export * from './geo';
 
