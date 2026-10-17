@@ -7,7 +7,9 @@ An open, app-neutral errand board on [Arkiv](https://arkiv.network). A **runner*
 Built 16-18 Oct 2026 during the hackathon. No pre-existing code (the first commit is the start of the work). Built for the **Best Indian Use Case** track.
 
 - Live app (real Arkiv, Tiramisu testnet): **https://bhaiya-please.vercel.app**. Browse the live board read-only straight away; to post, get free test GLM from the [faucet](https://hub.arkiv.network/faucet).
-- Sandbox (in-memory mock, no gas needed, every flow clickable): **https://bhaiya-please-sandbox.vercel.app**. Click "Try demo", then "Open as Runner in new tab".
+- Sandbox (in-memory mock, no gas needed, every flow clickable): **https://bhaiya-please-sandbox.vercel.app**. Click **Start guided tour** (on a desktop it opens resident and runner side by side).
+- **How to run and test everything** (sandbox, real chain, Android, test scripts): [`docs/TESTING.md`](docs/TESTING.md)
+- Screen-by-screen product spec: [`docs/UI_SCREENS.md`](docs/UI_SCREENS.md)
 - Demo video (<= 3 min): **`<VIDEO URL, TODO>`**
 - Schema (entities, attributes, expiry, queries, trust model): [`arkiv/schema.md`](arkiv/schema.md)
 - Friction report: [`arkiv/friction.md`](arkiv/friction.md)
@@ -63,6 +65,21 @@ What each Arkiv feature does for the user (full mapping and the honest "core onl
  Arkiv Tiramisu testnet (chain id 7738577)  ◀── scripts/seed (seed + heartbeat, operator tooling)
 ```
 
+## The app
+
+One account, two modes: **Get things** (resident) and **Run errands** (runner), plus an invite-only **Society desk** for verifiers. The design is "Auto Meter Brutalism" (the `BhaiyaPlease-DesignSystem` kit): meter-digit ETAs, number-plate levels, mela-light alerts, rubber-stamped receipts, a dark brand map.
+
+| Area | Screens |
+|---|---|
+| Onboarding | Welcome posters · how you'll use it · find your society (search / location / gate map) · public name + language · restore account |
+| Resident | Map of runs coming here · runner sheet · pick a shop · add a shop · what do you need · review bill · live tracking (status road) · handoff code · rate (receipt print and stamp) · report a problem |
+| Runner | Setup · start a run · active run (inbox, accept / decline, live location) · request detail · shopping list · at the gate · scan / paste code · handoff done · run summary |
+| Shared | Activity · activity detail · my profile ("your crowd") · public profile · receipt + verified record · get verified · notifications · settings · back up / move phone · help and safety · not found / maintenance |
+| Society desk | Scan a runner · check and vouch · vouches issued |
+| Sandbox | Start page · guided tour · split view · how-it-works callouts · time and reset controls |
+
+Languages: English, हिन्दी, ಕನ್ನಡ. Runner screens have a Sunlight mode. Every save shows Saving / Saved / Couldn't save on the button.
+
 ## Setup (reproducible)
 
 Requirements: Node >= 20, pnpm 10.
@@ -73,7 +90,10 @@ cp .env.example .env        # needed for seed / spike / heartbeat / fund; the mo
 pnpm test                   # core unit + e2e tests (in-memory chain, no network)
 pnpm typecheck              # all workspaces
 pnpm dev                    # the app in MOCK mode (EXPO_PUBLIC_CORE=mock): runs fully offline
+pnpm live-check             # 23-step check of the full loop on Tiramisu (needs .env, see below)
 ```
+
+Full walkthroughs (sandbox script, real chain with two accounts, Android): [`docs/TESTING.md`](docs/TESTING.md). Expo reads `EXPO_PUBLIC_*` from `apps/mobile/.env`, not the root `.env`.
 
 Against the real chain you need a funded test key (faucet: <https://hub.arkiv.network/faucet>; optional access key from <https://hub.arkiv.network>):
 
@@ -83,7 +103,8 @@ pnpm spike                  # exercises every risky Arkiv primitive, prints PASS
 pnpm seed                   # funds persona wallets, replays the fixture plan through the REAL core, prints addresses
 pnpm seed -- --dry          # print derived persona addresses only (no chain access)
 pnpm seed -- --resume       # continue an interrupted seed without duplicating what is on chain
-pnpm fund 0xADDR [0xADDR..] # top up any wallet (e.g. a judge's in-browser burner) from the seed wallet
+pnpm fund 0xADDR [0xADDR..] # top up any account (e.g. a judge's in-browser account) from the seed wallet
+pnpm live-check             # full loop + cancel / decline / at-the-gate on chain (LIVECHECK_ANON=1: no access key)
 EXPO_PUBLIC_CORE=real pnpm dev          # the app against Tiramisu
 EXPO_PUBLIC_CORE=real EXPO_PUBLIC_TRUSTED_VERIFIERS=0x166efae608457303daf2af830d281922c5d6ee20 \
   EXPO_PUBLIC_ARKIV_ACCESS_KEY=<web key> pnpm build:web   # static web export against Tiramisu
@@ -93,7 +114,7 @@ EXPO_PUBLIC_CORE=real EXPO_PUBLIC_TRUSTED_VERIFIERS=0x166efae608457303daf2af830d
 
 Set `EXPO_PUBLIC_TRUSTED_VERIFIERS=0x166efae608457303daf2af830d281922c5d6ee20` (the seeded demo verifier; also the default in `.env.example`). Persona wallets are derived deterministically from `SEED_PRIVATE_KEY` (keccak of key + persona id); keys are never printed or written. Seeding takes roughly 15-30 minutes (about five transactions per handoff, written one after another).
 
-**To see the Arkiv usage as a judge:** open the app and a runner's profile (the seeded "trusted" runner has 30 receipts from 18 distinct residents), open a receipt, and expand the on-chain proof panel: it shows the raw `$creator` (resident), `$owner` (runner), `readonly` flag and expiry read straight from Arkiv. The literal queries are in [`arkiv/schema.md`](arkiv/schema.md#5-queries-the-app-runs). To act, create a burner wallet in the app and fund it from the faucet (browsing needs no funds). Every write costs gas (one create is about 0.000125 GLM, so 0.01 GLM covers a full runner + resident + verifier flow many times over). If the faucet is inconvenient, send us the wallet address and we top it up with `pnpm fund <address>`; no private key is ever shipped in the app.
+**To see the Arkiv usage as a judge:** open the app and a runner's profile (the seeded "trusted" runner has 30 receipts from 18 distinct residents), open a receipt, and read its **Verified record** (written by the resident, owned by the runner, can't be edited, handoff code matched); expand **Advanced** for the raw record and account IDs and the explorer link, read straight from Arkiv. The literal queries are in [`arkiv/schema.md`](arkiv/schema.md#5-queries-the-app-runs). To act, sign up in the app (an account is created on the device; "Look around first" browses without one) and fund it from the faucet: the address is under Profile → Settings → Advanced. Every write costs gas (one create is about 0.000125 GLM, so 0.01 GLM covers a full runner + resident + verifier flow many times over). If the faucet is inconvenient, send us the wallet address and we top it up with `pnpm fund <address>`; no private key is ever shipped in the app.
 
 Note on seeded history: a real chain cannot be time-travelled, so seeded history is written "now". Counts, tiers and hash verification match the mock; timestamps and the "last 30 days" figures do not.
 
@@ -144,11 +165,15 @@ Profiles recomputed from chain by an anonymous viewer after seeding (16 Oct), tr
 
 ```
 apps/mobile/       Expo + Expo Router + react-native-web app (web: pnpm build:web)
+  app/             routes (welcome, society, sandbox, (app)/(tabs) home·activity·profile, request, runner, desk, settings…)
+  screens/         screen implementations per area (onboarding, resident, runner, shared, desk, sandbox) + BUILD.md
+  components/bp/   UI kit implementing the design system (buttons, meters, plates, stamps, sheets, records…)
+  components/map/  MapLibre map (web + native) with brand markers; schematic fallback in Expo Go
 packages/core/     domain layer over Arkiv: codec, services, reputation, adapter, mock, tests
-scripts/seed/      seed.ts (one-off history) and heartbeat.ts (keeps the board live)
+scripts/seed/      seed.ts (one-off history), heartbeat.ts (keeps the board live), fund.ts, live-check.ts
 scripts/spike/     chain spike: PASS/FAIL for each risky SDK behaviour
 arkiv/             schema.md and friction.md (judging deliverables)
-docs/              BRIEF, ARCHITECTURE, SDK_NOTES, PLAN, UX_SPEC, proposal (working docs; the code wins on any disagreement)
+docs/              TESTING (how to run/test), UI_SCREENS (screen spec), BRIEF, ARCHITECTURE, SDK_NOTES, PLAN, UX_SPEC, AUDIT, proposal
 .github/workflows/ ci.yml (tests + typecheck), heartbeat.yml
 ```
 
