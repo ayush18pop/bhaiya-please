@@ -1,7 +1,8 @@
 const inr = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
 export const rupees = (n: number) => inr.format(n);
 
-export const nowSec = () => Math.floor(Date.now() / 1000);
+import { nowUnix } from '@/hooks/useNow';
+export const nowSec = () => nowUnix();
 
 export function mmss(totalSeconds: number) {
   const s = Math.max(0, Math.floor(totalSeconds));

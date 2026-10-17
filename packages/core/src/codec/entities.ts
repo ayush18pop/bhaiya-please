@@ -11,6 +11,7 @@ import type {
   AttestationLevel,
   ComplaintReason,
   Complaint,
+  Decline,
   Delivery,
   EntityKey,
   EntityMeta,
@@ -114,6 +115,21 @@ export const encode = {
       run: attr('run', i.run),
       rider: attr('rider', i.rider),
     }, {});
+  },
+
+  /** Readonly: the runner's "no" cannot be edited, only expire with the run. */
+  decline(project: string, i: { request: EntityKey; run: EntityKey; rider: Address }): EntitySpec {
+    return spec(
+      project,
+      'decline',
+      {
+        request: attr('request', i.request),
+        run: attr('run', i.run),
+        rider: attr('rider', i.rider),
+      },
+      {},
+      { readonly: true },
+    );
   },
 
   delivery(
@@ -260,6 +276,7 @@ export const decode = {
         claimedTier: a.tier.value,
       };
       if (p.note) run.note = p.note;
+      if (a.at_gate) run.atGateAt = a.at_gate.value;
       return run;
     }, drop),
 
@@ -277,6 +294,14 @@ export const decode = {
 
   accept: (raw: RawEntity, project: string, drop?: DropSink): Accept | null =>
     decodeWith(raw, project, 'accept', attrSchemas.accept, payloadSchemas.none, (a, _p, m) => ({
+      ...m,
+      request: a.request.value,
+      run: a.run.value,
+      rider: a.rider.value,
+    }), drop),
+
+  decline: (raw: RawEntity, project: string, drop?: DropSink): Decline | null =>
+    decodeWith(raw, project, 'decline', attrSchemas.decline, payloadSchemas.none, (a, _p, m) => ({
       ...m,
       request: a.request.value,
       run: a.run.value,

@@ -35,20 +35,23 @@ export function useTx<A extends unknown[], R>(fn: (...args: A) => Promise<R>) {
   return { state, error, run, reset };
 }
 
-/** Plain-language error, chain jargon only in `detail`. */
+/** Plain-language error, chain jargon only in `detail`. Says what happened, no apology. */
 export function describeError(e: unknown): { code: string; message: string; detail: string } {
   const code = (e as { code?: string })?.code ?? 'UNKNOWN';
   const detail = (e as Error)?.message ?? String(e);
   const map: Record<string, string> = {
-    INSUFFICIENT_FUNDS: 'Your wallet needs a little test money first.',
+    INSUFFICIENT_FUNDS: 'This test network needs a little free credit on your account. Settings → Advanced.',
     RATE_LIMITED: 'The network is busy. Try again in a moment.',
-    NETWORK: 'No connection. Check your internet.',
-    EXPIRED: 'This run just ended.',
-    CAPACITY_EXHAUSTED: 'This run is full.',
-    TIER_LIMIT: 'That is above what this runner can take.',
-    INVALID_REVEAL: "Code doesn't match. Ask them to refresh.",
-    NOT_FOUND: 'We could not find that. It may have expired.',
+    NETWORK: 'Network dropped.',
+    EXPIRED: 'The run ended.',
+    CAPACITY_EXHAUSTED: 'The run filled up.',
+    TIER_LIMIT: "That's above this runner's limit.",
+    INVALID_REVEAL: "Code doesn't match this request.",
+    NOT_FOUND: 'It has expired or was removed.',
     NOT_OWNER: 'Only the owner can do that.',
+    NO_SIGNER: 'Finish signing up first.',
   };
-  return { code, message: map[code] ?? "Didn't go through. Nothing was sent.", detail };
+  let message = map[code];
+  if (!message && code === 'INVALID_INPUT') message = /accepted/i.test(detail) ? 'It was already accepted.' : /declined/i.test(detail) ? 'The runner declined it.' : detail;
+  return { code, message: message ?? 'Nothing was saved. Try again.', detail };
 }

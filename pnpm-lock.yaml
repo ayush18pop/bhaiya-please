@@ -13,6 +13,18 @@ importers:
       '@bhaiya-please/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@expo-google-fonts/archivo-black':
+        specifier: 0.4.1
+        version: 0.4.1
+      '@expo-google-fonts/baloo-2':
+        specifier: 0.4.2
+        version: 0.4.2
+      '@expo-google-fonts/baloo-tamma-2':
+        specifier: 0.4.2
+        version: 0.4.2
+      '@expo-google-fonts/modak':
+        specifier: 0.4.1
+        version: 0.4.1
       '@expo-google-fonts/plus-jakarta-sans':
         specifier: ^0.4.2
         version: 0.4.2
@@ -808,6 +820,18 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@expo-google-fonts/archivo-black@0.4.1':
+    resolution: {integrity: sha512-Zi4M9NPyKBllCd8TobvYRRAAm/dbhnrYTywbkfGVOJ7cThEetli+jYBh/deAjzOEqYMTrlSM89uEiherIPjkpQ==}
+
+  '@expo-google-fonts/baloo-2@0.4.2':
+    resolution: {integrity: sha512-uvrw1I+sP72PY8xROJQ6CMiGHu9+WJCdi72Q+OiWpQ3sKsIRyIEXimDfgUnkk2vpWVej0JX9fLc87iDmjKE86A==}
+
+  '@expo-google-fonts/baloo-tamma-2@0.4.2':
+    resolution: {integrity: sha512-FLLa4lRMBIyYtQRROa+w/UjKhRamxbJ3E5XXUFAYXfskxMsTuwMg9EtrY0nE7g2GmmJKfZxIiB8YHlrzMPOmVw==}
+
+  '@expo-google-fonts/modak@0.4.1':
+    resolution: {integrity: sha512-rsXgQKQ4vxCjgC/gupw+DolmywFSdpdHaaddCkIGR3dWvGq/YqPpL7ehfNxPpf5Z0fZPK4094t3amkCLL8jpIQ==}
 
   '@expo-google-fonts/plus-jakarta-sans@0.4.2':
     resolution: {integrity: sha512-6LYVmVGwjQvH+uzzWlVc9+oMj4lkNQ41aymVDjO+x8aFk8kCye20wOyLomYMZaMezA++Uf1mZRCw3W3Fy/hxEA==}
@@ -5133,6 +5157,14 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
+  '@expo-google-fonts/archivo-black@0.4.1': {}
+
+  '@expo-google-fonts/baloo-2@0.4.2': {}
+
+  '@expo-google-fonts/baloo-tamma-2@0.4.2': {}
+
+  '@expo-google-fonts/modak@0.4.1': {}
+
   '@expo-google-fonts/plus-jakarta-sans@0.4.2': {}
 
   '@expo/cli@58.1.9(@expo/dom-webview@58.0.2)(@expo/metro-runtime@58.0.14)(expo-constants@58.0.12)(expo-font@58.0.8(expo@58.0.11)(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0))(expo-router@58.0.20)(expo@58.0.11)(react-dom@19.3.0(react@19.3.0))(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)(typescript@6.0.3)':
@@ -6041,7 +6073,9 @@ snapshots:
       metro-runtime: 0.87.1
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 

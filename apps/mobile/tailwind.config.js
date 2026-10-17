@@ -1,6 +1,12 @@
 const { hairlineWidth } = require('nativewind/theme');
 
-/** @type {import('tailwindcss').Config} */
+/**
+ * Auto Meter Brutalism (BhaiyaPlease-DesignSystem/tokens). Theme-aware colours are RGB triplet
+ * CSS variables (global.css) so Sunlight mode can swap them; brand colours are fixed.
+ * @type {import('tailwindcss').Config}
+ */
+const v = (name) => `rgb(var(--c-${name}) / <alpha-value>)`;
+
 module.exports = {
   darkMode: 'class',
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
@@ -8,44 +14,39 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
-        primary: { DEFAULT: 'hsl(var(--primary))', foreground: 'hsl(var(--primary-foreground))', ink: 'hsl(var(--primary-ink))' },
-        secondary: { DEFAULT: 'hsl(var(--secondary))', foreground: 'hsl(var(--secondary-foreground))' },
-        destructive: { DEFAULT: 'hsl(var(--destructive))', foreground: 'hsl(var(--destructive-foreground))' },
-        muted: { DEFAULT: 'hsl(var(--muted))', foreground: 'hsl(var(--muted-foreground))' },
-        accent: { DEFAULT: 'hsl(var(--accent))', foreground: 'hsl(var(--accent-foreground))' },
-        card: { DEFAULT: 'hsl(var(--card))', foreground: 'hsl(var(--card-foreground))' },
-        popover: { DEFAULT: 'hsl(var(--popover))', foreground: 'hsl(var(--popover-foreground))' },
-        success: { DEFAULT: 'hsl(var(--success))', foreground: 'hsl(var(--success-foreground))' },
-        warning: { DEFAULT: 'hsl(var(--warning))', foreground: 'hsl(var(--warning-foreground))' },
+        // theme-aware (dark by default, paper in Sunlight mode)
+        bg: v('bg'),
+        fg: v('fg'),
+        surface: v('surface'),
+        raised: v('raised'),
+        line: v('line'),
+        muted: v('muted'),
+        edge: v('edge'),
+        // fixed brand colours
+        ink: '#141412',
+        paper: '#F5F2EC',
+        yellow: '#FFB400',
+        cng: '#1F9D55',
+        go: '#3DBE74',
+        mirchi: '#FF6F61',
+        water: '#1C2A2E',
       },
-      borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
-        card: '20px',
-        sheet: '28px',
-      },
-      // Radius scale: cards 20, sheets 28, chips/pills full. `lg` stays the control radius (12).
-      // (extend merges into the lg/md/sm above)
-      boxShadow: {
-        // Single-layer shadows so NativeWind maps them to RN shadow* props on Android too.
-        card: '0 2px 12px rgba(26, 29, 36, 0.07)',
-        lift: '0 6px 20px rgba(26, 29, 36, 0.12)',
-        float: '0 8px 28px rgba(26, 29, 36, 0.18)',
-        sheet: '0 -6px 28px rgba(26, 29, 36, 0.20)',
-        cta: '0 4px 14px rgba(226, 89, 27, 0.35)',
-      },
+      // Families are applied by components/bp/Text (one family per weight); these keep the classes valid.
+      fontFamily: { display: ['ArchivoBlack_400Regular'], meter: ['DSEG7'], hindi: ['Modak_400Regular'] },
       fontSize: {
-        display: ['34px', { lineHeight: '40px', letterSpacing: '-0.8px' }],
-        title: ['22px', { lineHeight: '28px', letterSpacing: '-0.3px' }],
-        eta: ['32px', { lineHeight: '36px', letterSpacing: '-0.6px' }],
+        'display-xl': ['44px', { lineHeight: '44px' }],
+        display: ['32px', { lineHeight: '34px' }],
+        title: ['24px', { lineHeight: '28px' }],
+        heading: ['19px', { lineHeight: '24px' }],
+        body: ['16px', { lineHeight: '23px' }],
+        label: ['14px', { lineHeight: '18px' }],
+        caption: ['13px', { lineHeight: '17px' }],
+        'meter-xl': ['56px', { lineHeight: '56px' }],
+        meter: ['28px', { lineHeight: '28px' }],
       },
-      borderWidth: { hairline: hairlineWidth() },
+      borderWidth: { DEFAULT: '2px', 3: '3px', hairline: hairlineWidth() },
+      borderRadius: { block: '12px', plate: '4px', sheet: '18px', pill: '999px' },
+      spacing: { tap: '48px', 'tap-runner': '56px', 'runner-cta': '64px' },
     },
   },
   plugins: [require('tailwindcss-animate')],

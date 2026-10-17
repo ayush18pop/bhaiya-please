@@ -34,6 +34,7 @@ export type EntityType =
   | 'delivery'
   | 'receipt'
   | 'complaint'
+  | 'decline'
   // live location (see "Live location" below)
   | 'ping';
 
@@ -90,6 +91,8 @@ export interface Run extends EntityMeta {
    */
   claimedTier: TierLevel;
   note?: string;
+  /** Runner's "at the gate" signal (run.at_gate, patched by markAtGate). Absent until first marked. */
+  atGateAt?: UnixSeconds;
 }
 
 export interface Request extends EntityMeta {
@@ -105,6 +108,13 @@ export interface Request extends EntityMeta {
 }
 
 export interface Accept extends EntityMeta {
+  request: EntityKey;
+  run: EntityKey;
+  rider: Address;
+}
+
+/** Runner turned a request down. Valid only if decline.$creator == decline.rider == run.$creator. */
+export interface Decline extends EntityMeta {
   request: EntityKey;
   run: EntityKey;
   rider: Address;

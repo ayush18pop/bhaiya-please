@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { attr, i32V, u64V } from '../codec/attrs';
 import { decode, encode } from '../codec/entities';
-import { noteSchema, zone6Schema } from '../codec/schemas';
+import { keySchema, noteSchema, zone6Schema } from '../codec/schemas';
 import { parseOrThrow } from '../codec/validate';
 import { BhaiyaPleaseError } from '../types';
-import type { Accept, AnnounceRunInput, EntityKey, MutationResult, Run, Zone6 } from '../types';
+import type { Accept, AnnounceRunInput, Decline, EntityKey, MutationResult, Run, Zone6 } from '../types';
 import { reader, requireSigner, sameAddr, TTL } from './context';
 import type { Reader, ServiceContext } from './context';
 import { loadProfile } from './reputation';
@@ -35,6 +35,11 @@ export async function validAcceptsForRun(rd: Reader, run: Run): Promise<Accept[]
 
 export function isRunnerAccept(a: Accept, run: Run): boolean {
   return sameAddr(a.creator, run.creator) && sameAddr(a.rider, a.creator);
+}
+
+/** Same rule as accepts: only the runner's own decline, naming itself as rider, counts. */
+export function isRunnerDecline(d: Decline, run: Run): boolean {
+  return sameAddr(d.creator, run.creator) && sameAddr(d.rider, d.creator);
 }
 
 function earliestPerRequest(accepts: Accept[]): Accept[] {
@@ -94,6 +99,22 @@ export function runService(ctx: ServiceContext) {
       if (!run) throw new BhaiyaPleaseError('NOT_FOUND', 'Run not found or expired');
       if (!sameAddr(run.owner, self)) throw new BhaiyaPleaseError('NOT_OWNER', 'Only the runner can cancel this run');
       return ctx.port.write(async (w) => ({ key: run.key, txHash: (await w.remove(run.key)).txHash }));
+    },
+
+    /** Partial patch of `at_gate` only; capacity_left, other attributes and expiry stay as they are. */
+    async markAtGate(runKey: EntityKey): Promise<MutationResult> {
+      const self = requireSigner(ctx);
+      const k = parseOrThrow(keySchema, runKey, 'runKey');
+      return ctx.port.write(async (w) => {
+        const run = await getTrustedRun(rd(), k);
+        if (!run) throw new BhaiyaPleaseError('NOT_FOUND', 'Run not found or expired');
+        if (!sameAddr(run.owner, self)) throw new BhaiyaPleaseError('NOT_OWNER', 'Only the runner can mark this run at the gate');
+        // Allowed after ETA (arriving late is normal); only an expired run is refused.
+        const now = ctx.port.now();
+        if (run.expiresAt <= now) throw new BhaiyaPleaseError('EXPIRED', 'This run has ended');
+        const res = await w.patch(run.key, { at_gate: attr('at_gate', BigInt(now)) });
+        return { key: run.key, txHash: res.txHash };
+      });
     },
   };
 }

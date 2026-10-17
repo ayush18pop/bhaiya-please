@@ -1,5 +1,5 @@
 import type { Address, BhaiyaPlease, MockBhaiyaPlease } from '@bhaiya-please/core';
-import type { RoleWallet } from './session';
+import type { Wallet } from './session';
 import { createMockBhaiyaPlease, mockAddressOf, PERSONA } from '@bhaiya-please/core/mock';
 
 export const CORE_MODE = (process.env.EXPO_PUBLIC_CORE ?? 'mock') as 'mock' | 'real';
@@ -10,11 +10,15 @@ export const TRUSTED_VERIFIERS: Address[] = (process.env.EXPO_PUBLIC_TRUSTED_VER
   .filter(Boolean) as Address[];
 
 export const FAUCET_URL = 'https://hub.arkiv.network/faucet';
+export const EXPLORER_URL = process.env.EXPO_PUBLIC_EXPLORER_URL ?? 'https://explorer.tiramisu.db-chain.testnet.arkiv.network';
+/** Production app URL, linked from the sandbox. */
+export const REAL_APP_URL = process.env.EXPO_PUBLIC_REAL_APP_URL ?? 'https://bhaiya-please.vercel.app';
+export const SANDBOX_URL = process.env.EXPO_PUBLIC_SANDBOX_URL ?? 'https://bhaiya-please-sandbox.vercel.app';
 
 export type AnyCore = BhaiyaPlease & Partial<Pick<MockBhaiyaPlease, 'dev'>>;
 
 /** Build the core instance for one wallet. Real core is loaded lazily so mock builds stay light. */
-export async function createCore(wallet: RoleWallet, verifierAddress: Address | null): Promise<AnyCore> {
+export async function createCore(wallet: Wallet, verifierAddress: Address | null): Promise<AnyCore> {
   const trustedVerifiers = [...TRUSTED_VERIFIERS, ...(verifierAddress ? [verifierAddress] : [])];
   if (CORE_MODE === 'real') {
     const { createBhaiyaPlease } = await import('@bhaiya-please/core');

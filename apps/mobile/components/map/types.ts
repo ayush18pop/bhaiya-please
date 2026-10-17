@@ -30,6 +30,10 @@ export interface RunnerPin {
   focused?: boolean;
   /** Older live pings of this run (≤ 2 min), oldest first: breadcrumbs that vanish with their ping. */
   trail?: MapPoint[];
+  /** Letter drawn inside the marker (e.g. "R"). Falls back to a bike glyph. */
+  initial?: string;
+  /** Runner's display name, shown on the focused runner's plate ("Ravi · 4 min"). */
+  name?: string;
 }
 
 export interface RouteLine {
@@ -53,16 +57,22 @@ export interface MapViewProps {
   onShopPress?: (id: string) => void;
   onRunnerPress?: (id: string) => void;
   style?: StyleProp<ViewStyle>;
-  /** Short footnote shown in the corner (e.g. "approx. ~150 m"). */
+  /** Short footnote shown as a glass pill in a corner (e.g. "Runner positions are rough (~150 m)"). */
   note?: string;
+  /** Where the note pill sits. Default 'top' (top-left, as in the artboards). */
+  notePlacement?: 'top' | 'bottom';
+  /** Show the glass "Locate me" (refit to `fit`) and "Zoom in" buttons, top-right. Default false. */
+  controls?: boolean;
 }
 
-export const BRAND = '#e2591b';
+/** Auto yellow: routes, runner markers, selected shop. */
+export const BRAND = '#FFB400';
+/** Tier plate colours (VERIFIED yellow, TRUSTED CNG green, NEW paper). */
 export const TIER_RING: Record<TierName | 'unknown', string> = {
-  new: '#64748b',
-  verified: '#0f766e',
-  trusted: '#e2591b',
-  unknown: '#94a3b8',
+  new: '#F5F2EC',
+  verified: '#FFB400',
+  trusted: '#3DBE74',
+  unknown: '#B5B1A8',
 };
 export const CATEGORY_LABEL: Record<ShopCategory, string> = {
   grocery: 'Grocery',

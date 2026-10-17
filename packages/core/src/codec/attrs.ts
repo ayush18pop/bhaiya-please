@@ -24,13 +24,15 @@ export const ATTR = {
   eta: 'u64',
   capacity_left: 'i32',
   tier: 'i32',
+  /** Optional; set by markAtGate (runner reached the destination gate). */
+  at_gate: 'u64',
   // request
   run: 'key',
   shop: 'key',
   max_price: 'i32',
   tip: 'i32',
   code_commit: 'bytes32',
-  // accept / delivery / receipt / complaint
+  // accept / decline / delivery / receipt / complaint
   request: 'key',
   rider: 'addr',
   resident: 'addr',
@@ -47,12 +49,13 @@ export type AttrName = keyof typeof ATTR;
 export const ENTITY_ATTRS: Readonly<Record<EntityType, readonly AttrName[]>> = {
   attestation: ['subject', 'level', 'prev', 'at'],
   shop: ['zone', 'zone5', 'category', 'name_tag'],
-  run: ['dest_zone', 'from_zone', 'eta', 'capacity_left', 'tier'],
+  run: ['dest_zone', 'from_zone', 'eta', 'capacity_left', 'tier', 'at_gate'],
   request: ['run', 'shop', 'dest_zone', 'max_price', 'tip', 'code_commit'],
   accept: ['request', 'run', 'rider'],
   delivery: ['request', 'rider', 'resident', 'zone'],
   receipt: ['rider', 'delivery', 'zone', 'at'],
   complaint: ['rider', 'request', 'reason', 'at'],
+  decline: ['request', 'run', 'rider'],
   ping: ['run', 'rider', 'gh7', 'zone5', 'at', 'seq'],
 };
 
@@ -65,6 +68,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'delivery',
   'receipt',
   'complaint',
+  'decline',
   'ping',
 ];
 

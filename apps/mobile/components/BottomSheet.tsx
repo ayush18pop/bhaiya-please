@@ -1,4 +1,4 @@
-/** Two-stop draggable sheet over a full-bleed map (Swiggy-style tracking layout). */
+/** Two-stop draggable glass sheet over a full-bleed map (B1). Glass only over the map, per the design system. */
 import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, View, type LayoutChangeEvent } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -6,7 +6,8 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 import { scheduleOnRN } from 'react-native-worklets';
 import { haptic } from '@/lib/haptics';
 
-const SPRING = { damping: 24, stiffness: 240, mass: 0.7 };
+/** Sheet spring from the design tokens (stiffness 380, damping 36). */
+const SPRING = { damping: 36, stiffness: 380, mass: 1 };
 
 export function BottomSheet({
   header,
@@ -67,11 +68,11 @@ export function BottomSheet({
     <View pointerEvents="box-none" className="absolute inset-0" onLayout={onLayout}>
       {ready ? (
         <Animated.View style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, height: h * expanded }, style]}>
-          <View className="flex-1 rounded-t-sheet border border-b-0 border-border/60 bg-background shadow-sheet">
+          <View className="flex-1 overflow-hidden rounded-t-sheet border-2 border-b-0 border-paper/85 bg-surface/95">
           <GestureDetector gesture={pan}>
             <View className="items-center pb-1 pt-2.5">
               <Pressable onPress={() => snap(y.value > travel / 2)} accessibilityRole="button" accessibilityLabel="Expand or collapse list" className="w-full items-center py-1">
-                <View className="h-1.5 w-12 rounded-full bg-muted-foreground/35" />
+                <View className="h-1.5 w-12 rounded-[2px] bg-fg" />
               </Pressable>
               {header ? <View className="w-full px-4 pt-1">{header}</View> : null}
             </View>

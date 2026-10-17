@@ -20,9 +20,10 @@ Attribute types are Arkiv attribute types (`str`, `i32`, `u64`, `addr`, `key`, `
 | Entity | Flags | Expiry (from creation) | Created by | `$owner` | Why this ownership |
 |---|---|---|---|---|---|
 | `shop` | PE | 30 d; any wallet's "still open" resets to now + 30 d | any wallet (lister) | lister | Community data, nobody needs special rights. PE lets neighbours keep it alive instead of the lister. |
-| `run` | none (must be patched) | `etaMinutes*60 + 600` s (ETA + 10 min) | runner | runner | Only the runner may decrement `capacity_left` or delete the run. Not RO because accept patches it. |
-| `request` | RO | `max(60, run.expiresAt - now + 3600)` s (run expiry + 1 h grace). Extended to 1 y when a receipt is issued; to 180 d when a complaint is filed (each only if that moves expiry later) | resident | resident | The commit must be immutable (RO), and the resident keeps the right to extend/delete it. |
+| `run` | none (must be patched) | `etaMinutes*60 + 600` s (ETA + 10 min) | runner | runner | Only the runner may decrement `capacity_left`, set `at_gate` or delete the run. Not RO because accept and `markAtGate` patch it. |
+| `request` | RO | `max(60, run.expiresAt - now + 3600)` s (run expiry + 1 h grace). Extended to 1 y when a receipt is issued; to 180 d when a complaint is filed (each only if that moves expiry later) | resident | resident | The commit must be immutable (RO), and the resident keeps the right to extend/delete it (`cancelRequest` deletes it while no valid accept exists). |
 | `accept` | none | `max(2, run.expiresAt - now)` s (dies with the run) | runner | runner | Proves the runner took the job; written atomically with the run patch. |
+| `decline` | RO | `max(2, run.expiresAt - now)` s (dies with the run) | runner | runner | The runner's "no" to one request. RO so it cannot be re-pointed; a declined request can no longer be accepted. |
 | `delivery` | RO | 1 y | runner | runner | The runner reveals the handoff secret; RO so the reveal cannot be rewritten. |
 | `receipt` | RO | 1 y; the owner (runner) can renew +1 y | **resident** | **runner** (transferred) | The point of the project: the resident authors it (`$creator`, unforgeable, immutable) but the **runner owns it**, so reputation is a portable asset the runner holds and renews, and no platform database owns it. |
 | `complaint` | RO | 180 d | resident | resident | The accused runner cannot delete or edit it (not the owner). The resident keeps ownership on purpose. |
@@ -45,13 +46,14 @@ Attribute types are Arkiv attribute types (`str`, `i32`, `u64`, `addr`, `key`, `
 | `eta` | u64 | run | Unix seconds. u64 so it supports range queries |
 | `capacity_left` | i32 (0-3) | run | Decremented by `accept` in the same batch |
 | `tier` | i32 (0-2) | run | **Self-declared** tier at announce time. Display hint only; limits always use the viewer-computed tier |
-| `run` | key | request, accept | Run this request/accept refers to |
+| `at_gate` | u64 (optional) | run | Unix seconds the runner last signalled "at the gate" (`markAtGate`, a partial patch). Absent until first set; runs without it still decode |
+| `run` | key | request, accept, decline | Run this request/accept/decline refers to |
 | `shop` | key | request | Shop to buy from |
 | `max_price` | i32 (rupees, 0-100000) | request | Price ceiling; checked against the runner's computed tier cap |
 | `tip` | i32 (rupees) | request | Tip offered |
 | `code_commit` | bytes32 | request | `keccak256(utf8(code) ‖ salt(16 B) ‖ requestKey(32 B))` |
-| `request` | key | accept, delivery, complaint | Request referred to |
-| `rider` | addr | accept, delivery, receipt, complaint | The runner |
+| `request` | key | accept, decline, delivery, complaint | Request referred to |
+| `rider` | addr | accept, decline, delivery, receipt, complaint | The runner |
 | `resident` | addr | delivery | Request creator (informational; trust uses `$creator`) |
 | `delivery` | key | receipt | Delivery being credited |
 | `reason` | str | complaint | `no_show` / `wrong_item` / `rude` |
@@ -61,9 +63,10 @@ Per entity (exactly `ENTITY_ATTRS` in code):
 ```
 attestation: subject level [prev] at
 shop:        zone zone5 category name_tag
-run:         dest_zone from_zone eta capacity_left tier
+run:         dest_zone from_zone eta capacity_left tier [at_gate]
 request:     run shop dest_zone max_price tip code_commit
 accept:      request run rider
+decline:     request run rider
 delivery:    request rider resident zone
 receipt:     rider delivery zone at
 complaint:   rider request reason at
@@ -77,6 +80,7 @@ complaint:   rider request reason at
 | run | `{ "note"?: string<=140 }` | Free text, synthetic in the demo |
 | request | `{ "items": string[1..3] }` | Each item 1-80 chars, e.g. "1 L toned milk" |
 | accept | `{}` | |
+| decline | `{}` | |
 | delivery | `{ "code": "0427", "salt": "0x<32 hex>" }` | The **reveal**. Public by design: it only proves the handoff happened; it is the first time it touches Arkiv |
 | receipt | `{ "tags": ReceiptTag[0..5] }` | `exact_item` `on_time` `polite` `good_price` `careful_packing`, no duplicates |
 | complaint | `{}` | |
@@ -96,7 +100,8 @@ Built with the typed builder `publicClient.select('*').where([...]).limit(200)` 
 | `getRequestsForRun(runKey)` | `… type = str('request') AND run = key(0x…)` |
 | `getMyRequests()` | `… type = str('request') AND $creator = addr(0x…)` |
 | accepts for a run (capacity, trust) | `… type = str('accept') AND run = key(0x…) AND $creator = addr(<runner>)` |
-| `getAcceptForRequest(requestKey)` | `… type = str('accept') AND request = key(0x…) AND $creator = addr(<run creator>)` |
+| `getAcceptForRequest(requestKey)`, `cancelRequest` / `declineRequest` accepted check | `… type = str('accept') AND request = key(0x…) AND $creator = addr(<run creator>)` |
+| `getDeclineForRequest(requestKey)`, `acceptRequest` / `declineRequest` declined check | `… type = str('decline') AND request = key(0x…) AND $creator = addr(<run creator>)` |
 | `getDeliveryForRequest(requestKey)` | `… type = str('delivery') AND request = key(0x…)` |
 | `getReceiptsFor(rider)` (reputation core) | `… type = str('receipt') AND $owner = addr(<rider>)`, then per receipt a read of its Delivery and that Delivery's Request |
 | `issueReceipt` duplicate check | `… type = str('receipt') AND delivery = key(0x…) AND $creator = addr(<resident>)` |
@@ -120,6 +125,7 @@ Anyone can create any entity with `project=bhaiyaplease`. Only `$creator` (immut
 |---|---|---|
 | Run | `run.$owner == run.$creator`; limits use the runner's **computed** tier, never the `tier` attribute | Run hijack after transfer; fake "Trusted" claims |
 | Accept | `accept.$creator == run.$creator`, `accept.rider == accept.$creator`, refers to this run; earliest per request wins | Strangers "accepting" for a runner; double accept |
+| Decline | same rule as Accept: `decline.$creator == decline.rider == run.$creator`, refers to this request and run; earliest wins | Strangers blocking a request by "declining" it for the runner |
 | Delivery | reveal hashes to `request.code_commit`; `delivery.$creator == delivery.rider`; rider is not the requester; if a live Accept exists, rider matches it; earliest wins | Fake deliveries (the salted secret is unknown to anyone but resident and the scanning runner); a requester delivering to themselves; another runner stealing credit |
 | Receipt | delivery exists; reveal verifies; `delivery.rider == receipt.rider`; **`request.$creator == receipt.$creator`**; `receipt.$creator != receipt.rider`; receipt, delivery and request were all created **readonly** (`not_readonly` otherwise); the receipt is owned by the profile's wallet (`$owner` query) | Receipts for deliveries the issuer was not party to; self-issued receipts; a mutable receipt the runner (its owner) could re-point, or a mutable request whose commit could be swapped |
 | Duplicates | Only the **earliest** valid receipt per request counts; later ones are marked `duplicate` and shown greyed | A resident minting many receipts for one handoff |
@@ -164,6 +170,9 @@ One shared `watchEntityEvents` poller per client (interval 2000 ms). Events carr
 | Attestation + trusted list | `attestation` | "ID-checked by <verifier>" and tier lift only for verifiers the viewer trusts; verifier can revoke | yes (verifier pages) |
 | `watchEntityEvents` | all | Board and request status update without refresh | yes (provider) |
 | `deleteEntity` | run, attestation | Runner cancels a run; verifier revokes | yes |
+| `deleteEntity` on a readonly entity (owner) | request (`cancelRequest`) | Resident withdraws a request nobody accepted yet; refused (`INVALID_INPUT` "Already accepted") once a valid accept exists | core only |
+| `createEntity(readonly)` + expiry tied to the run | `decline` (`declineRequest`, `getDeclineForRequest`) | Runner turns a request down; the request can no longer be accepted (`INVALID_INPUT` "Declined"). Only the run's creator may decline, before ETA | core only |
+| Partial `patchEntity` | `run.at_gate` (`markAtGate`) | Runner signals "at the gate"; only `at_gate` changes, `capacity_left` and expiry stay; allowed after ETA until the run expires; repeat calls update the time | core only |
 | `extendEntity` by owner | receipt | Runner renews receipts for another year | core only |
 | `atBlock` historical query | `getProfileAt` | "Tier when you accepted" dispute view | core only (cut-able) |
 | Bulk `ownershipChanges` | `transferAllReceipts` | Move all receipts to a new wallet | core only (cut-able) |

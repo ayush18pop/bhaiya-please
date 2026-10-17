@@ -1,13 +1,12 @@
 import * as Clipboard from 'expo-clipboard';
-import { toast } from 'sonner-native';
-import { S } from './strings';
+import { toast } from '@/components/bp/Sheet';
 
-export async function copyText(text: string, message: string = S.common.copied) {
+export async function copyText(text: string, message = 'Copied') {
   try {
     await Clipboard.setStringAsync(text);
     toast.success(message);
   } catch {
-    toast.error('Could not copy');
+    toast.error("Couldn't copy");
   }
 }
 

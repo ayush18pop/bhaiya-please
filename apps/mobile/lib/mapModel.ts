@@ -2,6 +2,7 @@
 import type { Ping, Run, Shop, TierName } from '@bhaiya-please/core';
 import { geohashBounds, geohashCenter, pingAge, pingFreshness } from '@bhaiya-please/core/mock';
 import type { MapPoint, RunnerPin, ShopPin } from '@/components/map/types';
+import { aliasFor } from '@/lib/alias';
 
 export const zoneCenter = (zone6: string): MapPoint => geohashCenter(zone6);
 
@@ -35,6 +36,7 @@ export function runnerPin(
   if (!ping) return null;
   const f = pingFreshness(ping, now);
   if (f === 'expired') return null;
+  const name = aliasFor(run.creator);
   return {
     id: run.key,
     pos: geohashCenter(ping.gh7),
@@ -44,6 +46,8 @@ export function runnerPin(
     chip: etaLabel(run, now),
     sub: agoShort(pingAge(ping, now)),
     focused: !!o.focused,
+    name,
+    initial: name.charAt(0).toUpperCase(),
     trail: (o.trail ?? []).filter((p) => p.key !== ping.key && now < p.expiresAt).map((p) => geohashCenter(p.gh7)),
   };
 }

@@ -95,6 +95,8 @@ export const attrSchemas = {
     eta: A.unix,
     capacity_left: A.capacity,
     tier: A.tier,
+    /** Optional: runs announced before (or never marked) have no at_gate. */
+    at_gate: A.unix.optional(),
   }),
   request: z.object({
     run: A.key,
@@ -105,6 +107,7 @@ export const attrSchemas = {
     code_commit: A.bytes32,
   }),
   accept: z.object({ request: A.key, run: A.key, rider: A.addr }),
+  decline: z.object({ request: A.key, run: A.key, rider: A.addr }),
   delivery: z.object({ request: A.key, rider: A.addr, resident: A.addr, zone: A.zone6 }),
   receipt: z.object({ rider: A.addr, delivery: A.key, zone: A.zone6, at: A.unix }),
   complaint: z.object({

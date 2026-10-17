@@ -19,6 +19,7 @@ import type {
   AnnounceRunInput,
   Attestation,
   Complaint,
+  Decline,
   Delivery,
   DeliveryVerification,
   EntityInspection,
@@ -90,6 +91,13 @@ export interface BhaiyaPlease {
   /** Runner withdraws a run before ETA. Arkiv: deleteEntity (owner only). */
   cancelRun(key: EntityKey): Promise<MutationResult>;
 
+  /**
+   * Runner signals "at the gate": patches ONLY run.at_gate = now (Run.atGateAt); capacity_left, other
+   * attributes and expiry are untouched. Allowed after ETA; repeat calls just update the time.
+   * NOT_OWNER for anyone but the runner, NOT_FOUND/EXPIRED once the run is gone. Arkiv: partial patchEntity.
+   */
+  markAtGate(runKey: EntityKey): Promise<MutationResult>;
+
   // ------------------------------------------------------------------ requests
   /**
    * Post a request on a run. Generates code+salt, predicts the request key, commits
@@ -108,6 +116,12 @@ export interface BhaiyaPlease {
   /** Arkiv: getEntity. */
   getRequest(key: EntityKey): Promise<Request | null>;
 
+  /**
+   * Resident withdraws its own request before it is accepted. NOT_OWNER for anyone but the request's
+   * owner; INVALID_INPUT('Already accepted') once a valid Accept exists. Arkiv: deleteEntity on a readonly entity (owner only).
+   */
+  cancelRequest(requestKey: EntityKey): Promise<MutationResult>;
+
   // ------------------------------------------------------------------ accept
   /**
    * Runner accepts a request: ONE atomic batch = create Accept + patch Run.capacity_left − 1.
@@ -117,6 +131,17 @@ export interface BhaiyaPlease {
 
   /** The valid Accept for a request (accept.$creator == run.$creator), or null. Arkiv: query on key attribute + $creator. */
   getAcceptForRequest(requestKey: EntityKey): Promise<Accept | null>;
+
+  /**
+   * Runner turns a request down: readonly Decline (request, run, rider), expiring with the run. A declined
+   * request can no longer be accepted (acceptRequest → INVALID_INPUT 'Declined'). NOT_OWNER for anyone but
+   * the run's creator, EXPIRED after ETA, INVALID_INPUT 'Already accepted' / 'Already declined'.
+   * Arkiv: createEntity(readonly) + expiry.
+   */
+  declineRequest(requestKey: EntityKey): Promise<MutationResult>;
+
+  /** The valid Decline for a request (decline.$creator == decline.rider == run.$creator), or null. Arkiv: query on key attribute + $creator. */
+  getDeclineForRequest(requestKey: EntityKey): Promise<Decline | null>;
 
   // ------------------------------------------------------------------ handoff / delivery
   /**
@@ -231,6 +256,8 @@ export interface MockBhaiyaPlease extends BhaiyaPlease {
     reset(reseed?: boolean): void;
     /** Live-location demo: publish one due ping per live seeded-runner run (synthetic route). Returns count. */
     pingTick(): Promise<number>;
+    /** The mock clock (unix seconds), which `advance` moves ahead of wall time. */
+    now(): number;
   };
 }
 

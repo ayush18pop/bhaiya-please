@@ -5,7 +5,9 @@
   "description": "Bhaiya, please le aana if possible: an open, app-neutral errand board on Arkiv",
   "license": "MIT",
   "packageManager": "pnpm@10.34.5",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "pnpm --filter mobile web",
     "build:web": "pnpm --filter mobile build:web",
@@ -14,6 +16,7 @@
     "spike": "pnpm --filter @bhaiya-please/spike spike",
     "seed": "pnpm --filter @bhaiya-please/seed seed",
     "heartbeat": "pnpm --filter @bhaiya-please/seed heartbeat",
-    "fund": "pnpm --filter @bhaiya-please/seed fund"
+    "fund": "pnpm --filter @bhaiya-please/seed fund",
+    "live-check": "pnpm --filter @bhaiya-please/seed live-check"
   }
 }

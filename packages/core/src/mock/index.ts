@@ -125,6 +125,7 @@ export const createMockBhaiyaPlease: CreateMockBhaiyaPlease = (config: MockConfi
       ready = reseed ? start(true) : Promise.resolve();
     },
     pingTick: () => sim.tick(),
+    now: () => chain.now(),
   };
 
   const closeDomain = domain.close;
@@ -141,6 +142,6 @@ export const createMockBhaiyaPlease: CreateMockBhaiyaPlease = (config: MockConfi
 
 // Light helpers for clients that import only the mock entry (no SDK): one wire format, one zone list.
 export { encodeHandoffQR, decodeHandoffQR, encodeAddressQR, decodeAddressQR } from '../codec/handoff';
-export { DEMO_ZONES } from '../zones';
+export { DEMO_ZONES, zoneFromLatLng, zoneFromGeohash } from '../zones';
 export * from '../geo';
 export { PING_RULES } from '../types';

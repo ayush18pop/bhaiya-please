@@ -5,12 +5,12 @@ import { computeCodeCommit, generateHandoffSecret } from '../codec/handoff';
 import { itemsSchema, keySchema, rupeesSchema } from '../codec/schemas';
 import { parseOrThrow } from '../codec/validate';
 import { BhaiyaPleaseError } from '../types';
-import type { Accept, EntityKey, MutationResult, PostRequestInput, PostRequestResult, Request } from '../types';
+import type { Accept, Decline, EntityKey, MutationResult, PostRequestInput, PostRequestResult, Request, Run } from '../types';
 import type { Writer } from '../arkiv/port';
 import { reader, requireSigner, sameAddr, TTL } from './context';
-import type { ServiceContext } from './context';
+import type { Reader, ServiceContext } from './context';
 import { loadProfile } from './reputation';
-import { getTrustedRun, isRunnerAccept, validAcceptsForRun } from './runs';
+import { getTrustedRun, isRunnerAccept, isRunnerDecline, validAcceptsForRun } from './runs';
 
 const postSchema = z.object({
   runKey: keySchema,
@@ -29,11 +29,16 @@ export function requestService(ctx: ServiceContext) {
     if (!request) return null;
     const run = await getTrustedRun(r, request.run);
     if (!run) return null;
-    const accepts = await r.list('accept', decode.accept, [{ op: 'eq', name: 'request', value: attr('request', request.key) }], {
-      creator: run.creator,
-    });
-    const valid = accepts.filter((a) => a.request === request.key && a.run === run.key && isRunnerAccept(a, run));
-    return valid.sort((a, b) => a.createdAt - b.createdAt)[0] ?? null;
+    return acceptFor(r, request, run);
+  }
+
+  async function getDeclineForRequest(requestKey: EntityKey): Promise<Decline | null> {
+    const r = rd();
+    const request = await r.one(parseOrThrow(keySchema, requestKey, 'requestKey'), decode.request);
+    if (!request) return null;
+    const run = await getTrustedRun(r, request.run);
+    if (!run) return null;
+    return declineFor(r, request, run);
   }
 
   return {
@@ -122,6 +127,7 @@ export function requestService(ctx: ServiceContext) {
         if (accepts.some((a) => a.request === request.key)) {
           throw new BhaiyaPleaseError('INVALID_INPUT', 'Already accepted');
         }
+        if (await declineFor(r, request, run)) throw new BhaiyaPleaseError('INVALID_INPUT', 'Declined');
         if (run.capacityLeft <= 0) throw new BhaiyaPleaseError('CAPACITY_EXHAUSTED', 'No capacity left on this run');
         if (accepts.length >= profile.tier.requestsPerRun) {
           throw new BhaiyaPleaseError('TIER_LIMIT', `Your tier allows ${profile.tier.requestsPerRun} per run`);
@@ -139,7 +145,63 @@ export function requestService(ctx: ServiceContext) {
     },
 
     getAcceptForRequest,
+
+    /** Resident withdraws a request nobody accepted yet. Readonly still allows the owner to delete. */
+    async cancelRequest(requestKey: EntityKey): Promise<MutationResult> {
+      const self = requireSigner(ctx);
+      const k = parseOrThrow(keySchema, requestKey, 'requestKey');
+      return ctx.port.write(async (w) => {
+        const r = rd();
+        const request = await r.one(k, decode.request);
+        if (!request) throw new BhaiyaPleaseError('NOT_FOUND', 'Request not found or expired');
+        if (!sameAddr(request.owner, self)) throw new BhaiyaPleaseError('NOT_OWNER', 'Only the resident can cancel this request');
+        const run = await getTrustedRun(r, request.run);
+        if (run && (await acceptFor(r, request, run))) throw new BhaiyaPleaseError('INVALID_INPUT', 'Already accepted');
+        return { key: request.key, txHash: (await w.remove(request.key)).txHash };
+      });
+    },
+
+    /** Runner turns a request down: a readonly Decline that dies with the run. */
+    async declineRequest(requestKey: EntityKey): Promise<MutationResult> {
+      const self = requireSigner(ctx);
+      const k = parseOrThrow(keySchema, requestKey, 'requestKey');
+      const r = rd();
+      const request = await r.one(k, decode.request);
+      if (!request) throw new BhaiyaPleaseError('NOT_FOUND', 'Request not found or expired');
+      return ctx.port.write(async (w) => {
+        const run = await getTrustedRun(r, request.run);
+        if (!run) throw new BhaiyaPleaseError('NOT_FOUND', 'Run not found or expired');
+        if (!sameAddr(run.creator, self)) throw new BhaiyaPleaseError('NOT_OWNER', 'Only the runner can decline');
+        const now = ctx.port.now();
+        if (run.eta <= now) throw new BhaiyaPleaseError('EXPIRED', 'This run has already left');
+        if (await acceptFor(r, request, run)) throw new BhaiyaPleaseError('INVALID_INPUT', 'Already accepted');
+        if (await declineFor(r, request, run)) throw new BhaiyaPleaseError('INVALID_INPUT', 'Already declined');
+        const s = encode.decline(ctx.project, { request: request.key, run: run.key, rider: self });
+        const created = await w.create({ ...s, expiresInSeconds: Math.max(2, run.expiresAt - now) });
+        return { key: created.key, txHash: created.txHash };
+      });
+    },
+
+    getDeclineForRequest,
   };
+}
+
+/** The runner's own Accept for this request on this run (earliest wins), or null. */
+async function acceptFor(r: Reader, request: Request, run: Run): Promise<Accept | null> {
+  const accepts = await r.list('accept', decode.accept, [{ op: 'eq', name: 'request', value: attr('request', request.key) }], {
+    creator: run.creator,
+  });
+  const valid = accepts.filter((a) => a.request === request.key && a.run === run.key && isRunnerAccept(a, run));
+  return valid.sort((a, b) => a.createdAt - b.createdAt)[0] ?? null;
+}
+
+/** The runner's own Decline for this request on this run (earliest wins), or null. */
+async function declineFor(r: Reader, request: Request, run: Run): Promise<Decline | null> {
+  const declines = await r.list('decline', decode.decline, [{ op: 'eq', name: 'request', value: attr('request', request.key) }], {
+    creator: run.creator,
+  });
+  const valid = declines.filter((d) => d.request === request.key && d.run === run.key && isRunnerDecline(d, run));
+  return valid.sort((a, b) => a.createdAt - b.createdAt)[0] ?? null;
 }
 
 async function removeQuietly(w: Writer, key: EntityKey): Promise<void> {

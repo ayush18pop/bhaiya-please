@@ -5,14 +5,12 @@
     "scheme": "bhaiyaplease",
     "version": "0.1.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/brand/icon-meterblack-1024.png",
     "userInterfaceStyle": "automatic",
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#e2591b",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#141412",
+        "foregroundImage": "./assets/brand/icon-meterblack-1024.png"
       },
       "permissions": [
         "CAMERA"
@@ -21,7 +19,7 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/brand/icon-meterblack-48.png"
     },
     "plugins": [
       "expo-router",
@@ -41,11 +39,24 @@
       ],
       "expo-image",
       "expo-font",
-      ["expo-splash-screen", { "image": "./assets/splash-icon.png", "imageWidth": 180, "backgroundColor": "#e2591b", "dark": { "image": "./assets/splash-icon.png", "backgroundColor": "#12141a" } }],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/brand/mark-autoyellow-1024.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#141412",
+          "dark": {
+            "image": "./assets/brand/mark-autoyellow-1024.png",
+            "backgroundColor": "#141412"
+          }
+        }
+      ],
       "expo-asset"
     ],
     "experiments": {
       "typedRoutes": false
-    }
+    },
+    "backgroundColor": "#141412"
   }
 }

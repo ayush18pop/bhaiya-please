@@ -1,5 +1,5 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
-import type { Accept, Address, Complaint, Delivery, EntityKey, Ping, Profile, Receipt, Request, Run, VerifiedReceipt } from '@bhaiya-please/core';
+import type { Accept, Address, Attestation, Complaint, Decline, Delivery, EntityKey, Ping, Profile, Receipt, Request, Run, Shop, VerifiedReceipt } from '@bhaiya-please/core';
 import { useCore, useSession } from '@/components/providers';
 
 /** Every query is namespaced by the active wallet so role switches never show stale data. */
@@ -54,7 +54,20 @@ export const useInspect = (key: EntityKey | undefined, enabled: boolean) => {
   return useQ(['inspect', key], () => core.inspect(key as EntityKey), enabled && !!key);
 };
 
-export type RequestStage = 'posted' | 'accepted' | 'delivered' | 'rated';
+export const useShop = (key?: string | null) => {
+  const core = useCore();
+  return useQ<Shop | null>(['shop', key], () => core.getShop(key as EntityKey), !!key);
+};
+
+export const useAttestations = (addr?: Address | null) => {
+  const core = useCore();
+  return useQ<Attestation[]>(['attestations', addr], () => core.getAttestationsFor(addr as Address), !!addr);
+};
+
+/** posted → accepted → atGate (runner tapped "I'm at the gate") → delivered → rated. */
+export type RequestStage = 'posted' | 'accepted' | 'atGate' | 'delivered' | 'rated';
+/** StatusRoad index for a stage. */
+export const STAGE_INDEX: Record<RequestStage, number> = { posted: 0, accepted: 1, atGate: 2, delivered: 3, rated: 4 };
 
 export interface RequestStatus {
   request: Request | null;
@@ -63,9 +76,11 @@ export interface RequestStatus {
   delivery: Delivery | null;
   receipt: Receipt | null;
   complaint: Complaint | null;
+  decline: Decline | null;
   stage: RequestStage;
-  /** Run expired before anyone accepted. */
+  /** Run expired (or the runner declined) before anyone accepted. */
   lapsed: boolean;
+  declined: boolean;
 }
 
 /** Derived from getRequest + getAcceptForRequest + getDeliveryForRequest (+ receipt/complaint for "rated"). */
@@ -75,10 +90,11 @@ export function useRequestStatus(key?: string) {
     ['reqStatus', key],
     async () => {
       const request = await core.getRequest(key as EntityKey);
-      const [run, accept, delivery] = await Promise.all([
+      const [run, accept, delivery, decline] = await Promise.all([
         request ? core.getRun(request.run) : null,
         core.getAcceptForRequest(key as EntityKey),
         core.getDeliveryForRequest(key as EntityKey),
+        request ? core.getDeclineForRequest(key as EntityKey) : null,
       ]);
       let receipt: Receipt | null = null;
       let complaint: Complaint | null = null;
@@ -87,8 +103,9 @@ export function useRequestStatus(key?: string) {
         receipt = rs.find((r) => r.receipt.delivery === delivery.key)?.receipt ?? null;
         complaint = cs.find((c) => c.request === key) ?? null;
       }
-      const stage: RequestStage = receipt || complaint ? 'rated' : delivery ? 'delivered' : accept ? 'accepted' : 'posted';
-      return { request, run, accept, delivery, receipt, complaint, stage, lapsed: !!request && !run && !accept };
+      const stage: RequestStage = receipt || complaint ? 'rated' : delivery ? 'delivered' : accept ? (run?.atGateAt ? 'atGate' : 'accepted') : 'posted';
+      const declined = !!decline && !accept;
+      return { request, run, accept, delivery, receipt, complaint, decline, stage, declined, lapsed: !!request && !accept && (!run || declined) };
     },
     !!key,
   );
@@ -98,6 +115,34 @@ export interface RequestRow {
   request: Request;
   accept: Accept | null;
   delivery: Delivery | null;
+  decline?: Decline | null;
+}
+
+async function rowsForRun(core: ReturnType<typeof useCore>, run: Run): Promise<RequestRow[]> {
+  const requests = await core.getRequestsForRun(run.key);
+  return Promise.all(
+    requests.map(async (request) => {
+      const [accept, delivery, decline] = await Promise.all([
+        core.getAcceptForRequest(request.key),
+        core.getDeliveryForRequest(request.key),
+        core.getDeclineForRequest(request.key),
+      ]);
+      return { request, accept, delivery, decline };
+    }),
+  );
+}
+
+/** One run with its requests (runner summary C10, activity detail D2). */
+export function useRunRows(runKey?: string | null) {
+  const core = useCore();
+  return useQ<{ run: Run | null; rows: RequestRow[] }>(
+    ['runRows', runKey],
+    async () => {
+      const run = await core.getRun(runKey as EntityKey);
+      return { run, rows: run ? await rowsForRun(core, run) : [] };
+    },
+    !!runKey,
+  );
 }
 
 /** The runner's active run with its requests and their accept/delivery state. */
@@ -107,14 +152,7 @@ export function useRunnerBoard() {
     const runs = await core.getMyRuns();
     const run = [...runs].sort((a, b) => b.eta - a.eta)[0] ?? null;
     if (!run) return { run: null, rows: [] };
-    const requests = await core.getRequestsForRun(run.key);
-    const rows = await Promise.all(
-      requests.map(async (request) => {
-        const [accept, delivery] = await Promise.all([core.getAcceptForRequest(request.key), core.getDeliveryForRequest(request.key)]);
-        return { request, accept, delivery };
-      }),
-    );
-    return { run, rows };
+    return { run, rows: await rowsForRun(core, run) };
   });
 }
 
