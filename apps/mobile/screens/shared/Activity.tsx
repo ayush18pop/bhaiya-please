@@ -12,6 +12,7 @@ import type { EntityKey, Run, VerifiedReceipt } from '@bhaiya-please/core';
 import { Chip, ChipRow, Segmented, SkeletonCards, Sink, Text } from '@/components/bp';
 import { useCore, useSession } from '@/components/providers';
 import { useMyRequests, useMyRuns, useReceipts, useRequestStatus, useRunRows, useShop, type RequestRow } from '@/hooks/queries';
+import { freshness } from '@/hooks/queries';
 import { useNow } from '@/hooks/useNow';
 import { aliasFor } from '@/lib/alias';
 import { rupees } from '@/lib/format';
@@ -30,7 +31,7 @@ function useRunsByKey(keys: string[]) {
   const core = useCore();
   const { address } = useSession();
   const uniq = [...new Set(keys)];
-  const qs = useQueries({ queries: uniq.map((k) => ({ queryKey: [address, 'run', k], queryFn: () => core.getRun(k as EntityKey), structuralSharing: false })) });
+  const qs = useQueries({ queries: uniq.map((k) => ({ queryKey: [address, 'run', k], queryFn: () => core.getRun(k as EntityKey), structuralSharing: false, ...freshness('run') })) });
   const map: Record<string, Run | null | undefined> = {};
   uniq.forEach((k, i) => (map[k] = qs[i]?.data));
   return { map, loading: qs.some((q) => q.isLoading) };

@@ -14,6 +14,7 @@ import type { RouteLine, RunnerPin } from '@/components/map/types';
 import { useCore, useSession } from '@/components/providers';
 import { HomeHeader } from '@/components/shell/HomeHeader';
 import { useLiveRuns, usePings, useRunTrail, useShops } from '@/hooks/queries';
+import { freshness } from '@/hooks/queries';
 import { useNow } from '@/hooks/useNow';
 import { aliasFor } from '@/lib/alias';
 import { fill, useCopy, useT } from '@/lib/i18n';
@@ -27,7 +28,7 @@ function useProfiles(addrs: Address[]) {
   const core = useCore();
   const { address } = useSession();
   const uniq = [...new Set(addrs)];
-  const qs = useQueries({ queries: uniq.map((a) => ({ queryKey: [address, 'profile', a], queryFn: () => core.getProfile(a), structuralSharing: false })) });
+  const qs = useQueries({ queries: uniq.map((a) => ({ queryKey: [address, 'profile', a], queryFn: () => core.getProfile(a), structuralSharing: false, ...freshness('profile') })) });
   const out: Record<string, Profile> = {};
   uniq.forEach((a, i) => {
     const p = qs[i]?.data;

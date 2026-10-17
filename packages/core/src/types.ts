@@ -466,6 +466,7 @@ export type BhaiyaPleaseErrorCode =
   | 'NO_SIGNER' // mutation called in read-only mode
   | 'INSUFFICIENT_FUNDS' // wallet has no GLM for gas → UI shows "Fund me"
   | 'RATE_LIMITED' // RPC 429 after retries
+  | 'QUOTA_EXHAUSTED' // the RPC's read quota (access key or anonymous budget) is used up: do not retry
   | 'NETWORK' // RPC unreachable after retries
   | 'NOT_FOUND' // entity missing or expired
   | 'EXPIRED' // run/request past eta / expiresAt

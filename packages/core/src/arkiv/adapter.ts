@@ -61,8 +61,15 @@ export function rpcUrlWithKey(rpcUrl: string, accessKey?: string): string {
  */
 export function rpcTransport(rpcUrl: string, accessKey?: string) {
   const base = rpcUrl.replace(/\/+$/, '');
-  return accessKey ? http(base, { fetchOptions: { headers: { 'X-API-KEY': accessKey } } }) : http(base);
+  // retryCount 0: the adapter owns retries (retryRead / retryWrite). viem's own retries stacked on
+  // top multiplied every failing read several times over, which burned the RPC quota.
+  return accessKey ? http(base, { retryCount: 0, fetchOptions: { headers: { 'X-API-KEY': accessKey } } }) : http(base, { retryCount: 0 });
 }
+
+/** After the keyed quota runs out, read anonymously for this long before trying the key again. */
+const KEY_FALLBACK_MS = 15 * 60_000;
+/** After every read path is out of quota, fail reads locally (no network) for this long. */
+const QUOTA_BREAKER_MS = 60_000;
 
 const lowerHex = <T extends Hex>(v: string): T => v.toLowerCase() as T;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -133,16 +140,36 @@ interface Timing {
 export async function createArkivAdapter(config: BhaiyaPleaseConfig): Promise<ArkivPort> {
   const transport = () => rpcTransport(config.rpcUrl || DEFAULT_RPC_URL, config.accessKey);
   const chain: Chain = config.chainId && config.chainId !== tiramisu.id ? { ...tiramisu, id: config.chainId } : tiramisu;
-  const pub = createPublicClient({ chain, transport: transport() });
+  const keyed = createPublicClient({ chain, transport: transport() });
+  const anon = config.accessKey ? createPublicClient({ chain, transport: rpcTransport(config.rpcUrl || DEFAULT_RPC_URL) }) : keyed;
+  // Reads go through `pub`: the keyed client normally, the anonymous one while the key's quota is out.
+  let pub = keyed;
+  let anonUntil = 0;
+  let breakerUntil = 0;
   const report = (op: string, err: unknown) => config.onSdkError?.(op, err);
 
   async function retryRead<T>(op: string, fn: () => Promise<T>): Promise<T> {
+    const now = Date.now();
+    if (now < breakerUntil) {
+      throw new BhaiyaPleaseError('QUOTA_EXHAUSTED', `${op}: the network's read quota is used up; paused for ${Math.ceil((breakerUntil - now) / 1000)} s`, { retryable: false });
+    }
+    if (pub === anon && anon !== keyed && now >= anonUntil) pub = keyed; // try the key again
     for (let attempt = 0; ; attempt++) {
       try {
         return await fn();
       } catch (err) {
         report(op, err);
         const c = classify(err);
+        if (c.code === 'QUOTA_EXHAUSTED') {
+          if (pub === keyed && anon !== keyed) {
+            // Key quota gone: fall back to the anonymous budget and retry this read there once.
+            pub = anon;
+            anonUntil = Date.now() + KEY_FALLBACK_MS;
+            continue;
+          }
+          breakerUntil = Date.now() + QUOTA_BREAKER_MS;
+          throw toBhaiyaError(op, err, c);
+        }
         if (c.retry !== 'transport' || attempt >= READ_ATTEMPTS - 1) throw toBhaiyaError(op, err, c);
         await sleep(backoff(attempt));
       }

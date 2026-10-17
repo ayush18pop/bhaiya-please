@@ -42,6 +42,7 @@ export function describeError(e: unknown): { code: string; message: string; deta
   const map: Record<string, string> = {
     INSUFFICIENT_FUNDS: 'This test network needs a little free credit on your account. Settings → Advanced.',
     RATE_LIMITED: 'The network is busy. Try again in a moment.',
+    QUOTA_EXHAUSTED: "The network's free limit is used up for now. Try again in a minute.",
     NETWORK: 'Network dropped.',
     EXPIRED: 'The run ended.',
     CAPACITY_EXHAUSTED: 'The run filled up.',

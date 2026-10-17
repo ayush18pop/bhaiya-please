@@ -2,16 +2,43 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 import type { Accept, Address, Attestation, Complaint, Decline, Delivery, EntityKey, Ping, Profile, Receipt, Request, Run, Shop, VerifiedReceipt } from '@bhaiya-please/core';
 import { useCore, useSession } from '@/components/providers';
 
+/**
+ * Freshness per query family. Chain events already invalidate the affected families (LiveBridge in
+ * providers.tsx), so polling is only a safety net: fast for the live board and map, slow for data
+ * that rarely changes (profiles, receipts, vouches, shops). Every read is an RPC call that spends
+ * the access-key quota, so keep these honest. Polling pauses while the tab is hidden.
+ */
+const SEC = 1000;
+export const FRESHNESS: Record<string, { refetchInterval: number | false; staleTime: number }> = {
+  runs: { refetchInterval: 20 * SEC, staleTime: 10 * SEC },
+  pings: { refetchInterval: 20 * SEC, staleTime: 10 * SEC },
+  runnerBoard: { refetchInterval: 20 * SEC, staleTime: 10 * SEC },
+  reqStatus: { refetchInterval: 20 * SEC, staleTime: 10 * SEC },
+  myRequests: { refetchInterval: 30 * SEC, staleTime: 15 * SEC },
+  run: { refetchInterval: 30 * SEC, staleTime: 15 * SEC },
+  runRows: { refetchInterval: 30 * SEC, staleTime: 15 * SEC },
+  myRuns: { refetchInterval: 60 * SEC, staleTime: 30 * SEC },
+  profile: { refetchInterval: 120 * SEC, staleTime: 60 * SEC },
+  receipts: { refetchInterval: 120 * SEC, staleTime: 60 * SEC },
+  attestations: { refetchInterval: 120 * SEC, staleTime: 60 * SEC },
+  issued: { refetchInterval: 120 * SEC, staleTime: 60 * SEC },
+  shops: { refetchInterval: 300 * SEC, staleTime: 120 * SEC },
+  shop: { refetchInterval: 300 * SEC, staleTime: 120 * SEC },
+  inspect: { refetchInterval: false, staleTime: Infinity },
+};
+const DEFAULT_FRESHNESS = { refetchInterval: 60 * SEC, staleTime: 30 * SEC };
+export const freshness = (family: string) => FRESHNESS[family] ?? DEFAULT_FRESHNESS;
+
 /** Every query is namespaced by the active wallet so role switches never show stale data. */
 function useQ<T>(key: unknown[], fn: () => Promise<T>, enabled = true) {
   const { address } = useSession();
-  return useQuery({ queryKey: [address, ...key], queryFn: fn, enabled, placeholderData: (prev) => prev, structuralSharing: false });
+  return useQuery({ queryKey: [address, ...key], queryFn: fn, enabled, placeholderData: (prev) => prev, structuralSharing: false, ...freshness(String(key[0])) });
 }
 
 export function useBalance() {
   const core = useCore();
   const { address } = useSession();
-  return useQuery({ queryKey: [address, 'balance'], queryFn: () => core.getBalance(), refetchInterval: 3000 });
+  return useQuery({ queryKey: [address, 'balance'], queryFn: () => core.getBalance(), refetchInterval: 60 * SEC, staleTime: 30 * SEC });
 }
 
 export const useLiveRuns = (zone: string) => {
@@ -191,7 +218,7 @@ export function useTiers(addrs: Address[]) {
   const { address } = useSession();
   const uniq = [...new Set(addrs)];
   const qs = useQueries({
-    queries: uniq.map((a) => ({ queryKey: [address, 'profile', a], queryFn: () => core.getProfile(a), structuralSharing: false })),
+    queries: uniq.map((a) => ({ queryKey: [address, 'profile', a], queryFn: () => core.getProfile(a), structuralSharing: false, ...freshness('profile') })),
   });
   const out: Record<string, Profile['tier']['name']> = {};
   uniq.forEach((a, i) => {

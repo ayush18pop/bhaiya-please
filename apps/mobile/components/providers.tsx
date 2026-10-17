@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { QueryCache, QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import type { Address } from '@bhaiya-please/core';
 import { createCore, CORE_MODE, TRUSTED_VERIFIERS, type AnyCore } from '@/lib/core';
+import { toast } from '@/components/bp/Sheet';
 import { setLanguage } from '@/lib/i18n';
 import { markEvent } from '@/lib/live';
 import {
@@ -183,38 +184,93 @@ function SessionProvider({ children }: { children: ReactNode }) {
   return <SessionCtx.Provider value={value}>{children}</SessionCtx.Provider>;
 }
 
-/** One live subscription for the whole app: any chain/mock event refreshes active queries (debounced). */
+/**
+ * Which query families each entity type can change. A chain event refreshes only those families
+ * (not every query on screen), so one event costs a handful of reads instead of dozens.
+ */
+const AFFECTS: Record<string, string[]> = {
+  run: ['runs', 'run', 'myRuns', 'runnerBoard', 'reqStatus', 'myRequests', 'runRows'],
+  request: ['reqStatus', 'myRequests', 'runnerBoard', 'runRows'],
+  accept: ['reqStatus', 'myRequests', 'runnerBoard', 'runRows', 'runs', 'run'],
+  decline: ['reqStatus', 'myRequests', 'runnerBoard', 'runRows'],
+  delivery: ['reqStatus', 'myRequests', 'runnerBoard', 'runRows'],
+  receipt: ['receipts', 'profile', 'reqStatus'],
+  complaint: ['profile', 'reqStatus'],
+  attestation: ['attestations', 'profile', 'issued'],
+  shop: ['shops', 'shop'],
+  ping: ['pings'],
+};
+const ALL_FAMILIES = [...new Set(Object.values(AFFECTS).flat())];
+
+/** One live subscription for the whole app: chain/mock events refresh only the affected query families (debounced). */
 function LiveBridge() {
   const { core } = useSession();
   const qc = useQueryClient();
+  const pending = useRef(new Set<string>());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!core) return;
+    // Real chain: no global event watcher. Tiramisu is shared, so the watcher would spend one paid
+    // read classifying every other project's new entity; polling (FRESHNESS) plus Arkiv Trigger
+    // pushes keep screens fresh instead. The mock emits events for free, so it keeps them.
+    if (!core || CORE_MODE === 'real') return;
     const off = core.subscribe({}, (e) => {
       markEvent();
-      // Pings arrive every ~20 s per run: refresh only the map queries, not every screen.
-      if (e.type === 'ping') {
-        void qc.invalidateQueries({ predicate: (q) => q.queryKey.includes('pings') });
-        return;
-      }
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => qc.invalidateQueries(), 250);
+      for (const f of e.type ? (AFFECTS[e.type] ?? []) : ALL_FAMILIES) pending.current.add(f);
+      if (timer.current) return;
+      timer.current = setTimeout(() => {
+        const fams = pending.current;
+        pending.current = new Set();
+        timer.current = null;
+        // keys are [address, family, ...]
+        void qc.invalidateQueries({ predicate: (q) => fams.has(String(q.queryKey[1])) });
+      }, 400);
     });
     return () => {
       off();
       if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
     };
   }, [core, qc]);
   return null;
 }
 
+let lastQuotaToast = 0;
+
 export function CoreProvider({ children }: { children: ReactNode }) {
   const [client] = useState(
     () =>
       new QueryClient({
-        defaultOptions: { queries: { staleTime: 2000, refetchInterval: 5000, retry: 1, refetchOnWindowFocus: true } },
+        queryCache: new QueryCache({
+          onError: (err) => {
+            // One calm notice when the RPC read quota runs out (core pauses reads for a minute).
+            if ((err as { code?: string })?.code !== 'QUOTA_EXHAUSTED' || Date.now() - lastQuotaToast < 120_000) return;
+            lastQuotaToast = Date.now();
+            toast.info("The network's free limit is used up for now. Showing what we have; retrying in a minute.");
+          },
+        }),
+        defaultOptions: {
+          queries: {
+            staleTime: 30_000,
+            refetchInterval: 60_000,
+            refetchIntervalInBackground: false,
+            refetchOnWindowFocus: true,
+            // Core already retries transient errors; never retry a used-up quota or a missing record.
+            retry: (n, err) => n < 1 && !['QUOTA_EXHAUSTED', 'RATE_LIMITED', 'NOT_FOUND', 'INVALID_INPUT'].includes((err as { code?: string })?.code ?? ''),
+          },
+        },
       }),
   );
+  // Diagnostics (web): window.__bpFetches counts query fetches by family when ?debugFetch=1.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.location?.search.includes('debugFetch=1')) return;
+    const w = window as unknown as { __bpFetches: Record<string, number> };
+    w.__bpFetches = {};
+    return client.getQueryCache().subscribe((e) => {
+      if (e.type !== 'updated' || e.action.type !== 'fetch') return;
+      const k = String(e.query.queryKey[1]);
+      w.__bpFetches[k] = (w.__bpFetches[k] ?? 0) + 1;
+    });
+  }, [client]);
   return (
     <QueryClientProvider client={client}>
       <SessionProvider>

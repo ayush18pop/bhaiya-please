@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { Accept, Decline, Delivery, Request, Run, TierName } from '@bhaiya-please/core';
 import { LEVEL_LIMITS, levelLabel, tagLabel, toast } from '@/components/bp';
 import { useCore, useSession } from '@/components/providers';
-import { useProfile, useReceipts, useRunnerBoard } from '@/hooks/queries';
+import { freshness, useProfile, useReceipts, useRunnerBoard } from '@/hooks/queries';
 import { nowUnix } from '@/hooks/useNow';
 import { aliasFor } from '@/lib/alias';
 import { fill, resolveCopy } from '@/lib/i18n';
@@ -73,7 +73,7 @@ function useMine() {
 function useRunsHere(zone6: string, on: boolean) {
   const core = useCore();
   const { address } = useSession();
-  return useQuery({ queryKey: [address, 'runs', zone6], queryFn: () => core.getLiveRuns(zone6), enabled: on });
+  return useQuery({ queryKey: [address, 'runs', zone6], queryFn: () => core.getLiveRuns(zone6), enabled: on, ...freshness('runs') });
 }
 
 export default function NotificationWatcher() {

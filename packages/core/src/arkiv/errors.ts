@@ -90,6 +90,10 @@ export function classify(err: unknown): Classified {
   if (links.some((e) => e.name === 'NonceTooLowError') || /nonce too low|nonce has already been used/i.test(all)) {
     return { code: 'NETWORK', retry: 'nonce', broadcast };
   }
+  // Quota, not congestion: retrying only burns more of a budget that is already gone.
+  if (/QUOTA_EXCEEDED|ANON_COST_LIMITED|quota exhausted|budget exhausted/i.test(all + links.map((e) => String((e as { details?: unknown }).details ?? '')).join(' '))) {
+    return { code: 'QUOTA_EXHAUSTED', retry: 'never', broadcast };
+  }
   if (
     links.some((e) => e.status === 429 || e.code === -32005 || e.name === 'LimitExceededRpcError') ||
     /\b429\b|rate limit|too many requests/i.test(all)
