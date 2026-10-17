@@ -47,6 +47,11 @@ export function setHistoryOwner(address: string | null) {
 export function logActivity(e: LogEntry | (Partial<LogEntry> & { key: string; kind: LogEntry['kind'] })) {
   if (!owner) return;
   const i = list.findIndex((x) => x.key === e.key);
+  // Unchanged write: do nothing (screens log on every render; notifying would loop).
+  if (i >= 0) {
+    const cur = list[i] as unknown as Record<string, unknown>;
+    if (Object.entries(e).every(([k, v]) => JSON.stringify(cur[k]) === JSON.stringify(v))) return;
+  }
   list = i >= 0 ? list.map((x, j) => (j === i ? ({ ...x, ...e } as LogEntry) : x)) : ([e as LogEntry, ...list].slice(0, 200));
   setJSON('local', key(owner), list);
   subs.forEach((f) => f());
