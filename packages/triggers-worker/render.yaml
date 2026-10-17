@@ -17,6 +17,8 @@ services:
     envVars:
       - key: TRIGGERS_DATA_DIR
         value: /data
+      - key: TRIGGERS_PORT
+        value: "10000" # Render's default PORT; overrides the Dockerfile's 8787
       - key: TRIGGERS_POLL_MS
         value: "10000"
       - key: ARKIV_RPC_URL
