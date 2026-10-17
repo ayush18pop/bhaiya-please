@@ -8,6 +8,7 @@ import { Alert, Button, Chip, Empty, Icon, Screen, SkeletonCards, Text } from '@
 import { MapView } from '@/components/map/MapView';
 import { useSession } from '@/components/providers';
 import { usePings, useProfile, useRun } from '@/hooks/queries';
+import { ReadProblem } from '@/components/shell/ReadProblem';
 import { useNow } from '@/hooks/useNow';
 import { aliasFor } from '@/lib/alias';
 import { setDraft, useDraft } from '@/lib/draft';
@@ -40,7 +41,7 @@ export default function PickShop() {
   const list = cat ? all.filter((s) => s.category === cat) : all;
   const selected = draft.runKey === key ? all.find((s) => s.key === draft.shopKey) ?? null : null;
   const select = (k: string) => setDraft({ runKey: key, shopKey: k });
-  const ended = (!run.isLoading && !r) || (!!r && !runOpen(r, now));
+  const ended = (run.isSuccess && !r) || (!!r && !runOpen(r, now));
   const pin = r ? runnerPin(r, pings.data?.[0], now, { tier: profile.data?.tier.name ?? null, focused: true }) : null;
   const pins = shopPins(list, selected?.key);
   const mins = r ? minsTo(r.eta, now) : 0;
@@ -83,9 +84,10 @@ export default function PickShop() {
       </ScrollView>
       <View accessibilityRole="radiogroup" className="gap-3.5 px-4 pb-4 pt-3">
         {ended ? <Alert tone="expired" title={fill(c.shops.ended, { name: name || 'The runner' })} /> : null}
+        {(run.isError && !r) || (shops.isError && !shops.data) ? <ReadProblem error={run.error} /> : null}
         {shops.isLoading ? (
           <SkeletonCards n={3} kind="row" />
-        ) : list.length === 0 ? (
+        ) : list.length === 0 && !(shops.isError && !shops.data) ? (
           <Empty title={cat ? fill(c.shops.emptyCat, { cat: c.shops.cat[cat] }) : c.shops.empty} body={c.shops.emptyBody} />
         ) : (
           list.map((s) => (

@@ -14,6 +14,7 @@ import type { RouteLine, RunnerPin } from '@/components/map/types';
 import { useCore, useSession } from '@/components/providers';
 import { HomeHeader } from '@/components/shell/HomeHeader';
 import { useLiveRuns, usePings, useRunTrail, useShops } from '@/hooks/queries';
+import { ReadProblem } from '@/components/shell/ReadProblem';
 import { freshness } from '@/hooks/queries';
 import { useNow } from '@/hooks/useNow';
 import { aliasFor } from '@/lib/alias';
@@ -98,7 +99,9 @@ export default function ResidentHome() {
   const routes: RouteLine[] = pins.map((p) => ({ id: p.id, from: { runner: p.id }, to: gate, tone: p.focused ? 'primary' : 'muted' }));
 
   const loading = !q.data && q.isLoading;
-  const empty = !loading && runs.length === 0;
+  // A failed first read is not "nobody is coming": show the read problem instead of the empty poster.
+  const readFailed = q.isError && !q.data;
+  const empty = !loading && !readFailed && runs.length === 0;
   const updated = q.dataUpdatedAt || Date.now();
   const offMin = Math.max(1, Math.round((Date.now() - updated) / 60000));
 
@@ -148,6 +151,7 @@ export default function ResidentHome() {
     <View className="flex-1 bg-bg">
       <HomeHeader />
       {!online ? <OfflineBanner text={fill(c.home.offline, { n: offMin })} /> : null}
+      {readFailed && online ? <ReadProblem error={q.error} className="mx-4 mt-3" /> : null}
       {empty ? (
         <EmptyPoster />
       ) : (

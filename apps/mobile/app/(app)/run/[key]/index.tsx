@@ -6,6 +6,7 @@ import { Alert, Avatar, Button, CountChip, LevelPlate, Meter, Skeleton, StatusPl
 import { MapView } from '@/components/map/MapView';
 import { useSession } from '@/components/providers';
 import { usePings, useProfile, useRun } from '@/hooks/queries';
+import { ReadProblem } from '@/components/shell/ReadProblem';
 import { useNow } from '@/hooks/useNow';
 import { aliasFor } from '@/lib/alias';
 import { rupees } from '@/lib/format';
@@ -30,7 +31,7 @@ export default function RunnerSheet() {
   const p = profile.data;
   const name = r ? aliasFor(r.creator) : '';
   const level = p?.tier.name ?? null;
-  const missing = !run.isLoading && !r;
+  const missing = run.isSuccess && !r;
   const full = !!r && r.capacityLeft <= 0;
   const ended = missing || (!!r && now >= r.expiresAt);
   const atGate = !!r && !ended && (now >= r.eta || !!r.atGateAt);
@@ -67,6 +68,7 @@ export default function RunnerSheet() {
 
   return (
     <SheetScreen backdrop={backdrop} footer={footer}>
+      {run.isError && !r ? <ReadProblem error={run.error} /> : null}
       {!r || !p ? (
         missing ? (
           <Text variant="title">{c.runner.missing}</Text>
