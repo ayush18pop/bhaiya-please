@@ -4,6 +4,7 @@ import { ScrollView, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Alert, Button, Chip, Field, Meter, PrivacyLine, Screen, Stepper, Text } from '@/components/bp';
 import { useProfile, useRun, useShop } from '@/hooks/queries';
+import { ReadProblem } from '@/components/shell/ReadProblem';
 import { useNow } from '@/hooks/useNow';
 import { aliasFor } from '@/lib/alias';
 import { setDraft, useDraft } from '@/lib/draft';
@@ -50,7 +51,7 @@ export default function Ask() {
     if (i >= 0) setItem(i, label);
   };
   const filled = items.filter((x) => x.trim()).length;
-  const missing = !run.isLoading && !r;
+  const missing = run.isSuccess && !r;
   const closed = missing || (!!r && !runOpen(r, now));
   const mins = r ? minsTo(r.eta, now) : 0;
   const atCap = draft.maxPrice >= cap;
@@ -85,6 +86,7 @@ export default function Ask() {
           />
         ))}
       </Rise>
+      {run.isError && !r ? <ReadProblem error={run.error} /> : null}
       {closed ? (
         <Alert
           tone="expired"
