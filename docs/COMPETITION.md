@@ -1,6 +1,6 @@
 # Competitive landscape: Arkiv Global Tour Stop (snapshot 17 Oct 2026)
 
-Source: the Devfolio gallery https://arkiv.devfolio.co/projects (27 projects listed on 17 Oct, read with a browser) and each project's public page and repo. Rules and rubric: https://github.com/Arkiv-Network/global-tour-stop-pre-devcon. **Bhaiya Please is not in the list yet: submit before 18 Oct 23:59 BST.**
+Source: the Devfolio gallery https://arkiv.devfolio.co/projects (27 projects listed on 17 Oct, 28 on the later re-check, read with a browser) and each project's public page and repo. Rules and rubric: https://github.com/Arkiv-Network/global-tour-stop-pre-devcon. **Bhaiya Please is not in the list yet: submit before 18 Oct 23:59 BST.**
 
 ## How we are scored
 
@@ -21,6 +21,7 @@ Best Indian Use Case ($2,000 + Devcon ticket) is decided first, among teams with
 
 | Project | What it is | Tracks | Arkiv use (as described) | Notes |
 |---|---|---|---|---|
+| **Turn on Arkiv** *(added 17 Oct)* | Shared record for rotating savings committees (family BCs, office committees, kitty parties): "I've paid" signed by the member, "Paid ✓ confirmed by Ravi" signed by the collector | (India likely) | Every read scoped by `$creator` (organiser, then roster wallets), read-only rules from day one, permanent disputes, permissionless extension ("keep our record alive"), **encrypted payloads** via Arkiv's encryption package, with the group key in the invite link's `#fragment` | **Our closest rival on "Why India".** It's a daily-life, two-sided Indian ritual for tens of millions; UPI deep link with the amount filled; Hindi + English, ₹ grouping, WhatsApp invites, budget Android phones; **no wallet / crypto words**. Strong privacy story (encryption). A web page rather than an app; no map or live flows. |
 | **ScamWatch India** | Paste an investment link and see whether it's reported, how severe, and who confirmed it | CR, Security, India | Signed reports, read-only + permissionless extension, confirm + extend in one batch, absolute-block extension | Cites I4C loss figures; normaliser refuses phone/UPI/email; static page reads straight from chain; strong friction (quota, attribute case, `$createdAt`) |
 | **Asli (असली)** | Institutions publish notices from their own wallet; anyone checks a WhatsApp forward (real / altered / withdrawn / expired / unverified issuer) | (India likely) | Issuer wallets vouched by `.well-known` / DNS, historical `atBlock` lookbacks, document fingerprints | Very polished verdicts with a diff; read relay after `ANON_COST_LIMITED`; measured the cost model (100 units per query) |
 | **BijliLog** | Neighbour-kept power-cut log per PIN code, Hindi/English, complaint export | CR, OS, Security (+1) | Per-device signed confirmations, records sealed to a keyless address, relay wallet pays fees | **No wallet needed for users** (relay pays gas); one-person team; demo video |
@@ -34,7 +35,7 @@ Best Indian Use Case ($2,000 + Devcon ticket) is decided first, among teams with
 
 ### Other entries (global CROPS tracks)
 
-Warrant canaries (Lapse, CROPS Canary, Arkiv Canary), evidence and audit logs (Receipt Log, SiteLog, Tacho, Arkiv Vault, Door Ledger, Fine Print Ledger, TagWitness, Mirrorlease, On the Clock, Arkify, Beacon, Officially), registries (LCRD Open Registry), reputation (ProofGraph). Mostly verification and transparency tools. **No other entry is a two-sided marketplace with a consumer mobile app**, and none ships an automation layer like Arkiv Triggers.
+Warrant canaries (Lapse, CROPS Canary, Arkiv Canary), release-checksum attestations (**HashBeacon**, added: CR + Security, maintainer wallet as `$creator`, 14-day CI-key delegation renewed by lifetime extension, CLI + static page), evidence and audit logs (Receipt Log, SiteLog, Tacho, Arkiv Vault, Door Ledger, Fine Print Ledger, TagWitness, Mirrorlease, On the Clock, Arkify, Beacon, Officially), registries (LCRD Open Registry), reputation (ProofGraph). Mostly verification and transparency tools. **Only Turn on Arkiv is also a two-sided, everyday Indian product, and no other entry is a marketplace with a consumer mobile app**, and none ships an automation layer like Arkiv Triggers.
 
 ## Where we stand
 
@@ -67,6 +68,7 @@ Warrant canaries (Lapse, CROPS Canary, Arkiv Canary), evidence and audit logs (R
 | No cited Indian evidence in the README | ScamWatch (I4C), Asli (MHA, Indeed), AbhiChahiye (press), Switched Off (Access Now), SlotBazaar (survey n=46) | Add a short "Why India" section with sources (quick-commerce delivery fees, gated-community population, gig-worker reputation lock-in) and, if possible, 3–5 quotes from riders and residents (consented, anonymised). |
 | Public key in the browser bundle, so a single busy hour can exhaust it | Asli, Switched Off, AbhiChahiye (read relays) | **P0:** a read-only relay function on Vercel with caching (`SUBMISSION.md` §3.1) |
 | Demo video not recorded | BijliLog, Switched Off, DeadlineGuard have one | Record per `SUBMISSION.md` §6 |
+| Turn on Arkiv encrypts payloads; our requests store item names in plaintext (synthetic, no PII) | Turn on Arkiv | Say it plainly in "what stays off Arkiv": items are public by design so runners can see them; names, phones, flats, GPS and payments never touch the chain. Optionally encrypt free-text items to the runner after acceptance (later). |
 | Track choice | Most India entries also enter CR / Security / OS | Enter **Best Indian Use Case** + **Security**. We filter everything by `$creator` and re-verify evidence, and Security's rubric asks for exactly that. Only add more tracks if the "Why this pillar" answer is strong. |
 
-**Positioning line for judges:** *"Every other India entry is a ledger you check. Bhaiya Please is a market you use every evening: the resident asks, the neighbour brings it, and the trust that makes it work belongs to the runner, on Arkiv, with alerts and no-show proofs run by an open trigger network anyone can reuse."*
+**Positioning line for judges:** *"Most India entries are ledgers you check. Bhaiya Please is a market you use every evening: the resident asks, the neighbour brings it, and the trust that makes it work belongs to the runner, on Arkiv, with alerts and no-show proofs run by an open trigger network anyone can reuse."*
