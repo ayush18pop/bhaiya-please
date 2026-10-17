@@ -1,6 +1,7 @@
 /** D10 Help and safety: emergency numbers, the rules for both sides, FAQ, feedback. No support team needed. */
 import { useState } from 'react';
 import { Linking, Pressable, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { ChevronDown, Phone, ShieldAlert } from 'lucide-react-native';
 import {
   Animated, Crowd, FadeIn, Icon, Screen, Text, TextButton, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming,
@@ -59,6 +60,9 @@ function GateBanner({ text }: { text: string }) {
 export default function Help() {
   const c = useCopy(sharedCopy).help;
   const { society } = useSession();
+  // ?faq=<id> opens that answer (e.g. Settings → Notifications links to "How do alerts work?").
+  const { faq } = useLocalSearchParams<{ faq?: string }>();
+  const openId = faq && c.faq.some((f) => f.id === faq) ? faq : c.faq[0]?.id;
   return (
     <Screen title={c.title} contentClassName="gap-[18px] pb-10">
       <Rise index={0}>
@@ -91,7 +95,7 @@ export default function Help() {
         <Text className="text-[17px] font-extrabold">{c.faqTitle}</Text>
         <View className="overflow-hidden rounded-block border-2 border-line bg-surface">
           {c.faq.map((f, i) => (
-            <Faq key={f.q} q={f.q} a={f.a} first={i === 0} defaultOpen={i === 0} />
+            <Faq key={f.id} q={f.q} a={f.a} first={i === 0} defaultOpen={f.id === openId} />
           ))}
         </View>
       </Rise>

@@ -12,15 +12,16 @@ import {
 } from '@/components/bp';
 import { MapView } from '@/components/map/MapView';
 import { useCore, useSession } from '@/components/providers';
-import { STAGE_INDEX, useProfile, useRequestStatus, useRunTrail, usePings, useShop } from '@/hooks/queries';
+import { STAGE_INDEX, useNoShow, useProfile, useRequestStatus, useRunTrail, usePings, useShop } from '@/hooks/queries';
 import { useNow } from '@/hooks/useNow';
 import { aliasFor } from '@/lib/alias';
 import { setDraft } from '@/lib/draft';
 import { rupees } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
-import { logActivity, type RequestLog } from '@/lib/history';
+import { findLog, logActivity, type RequestLog } from '@/lib/history';
 import { fill, useCopy, useT } from '@/lib/i18n';
 import { runnerPin } from '@/lib/mapModel';
+import { sawAccepted } from '@/lib/triggers';
 import { residentCopy } from '@/screens/resident/copy';
 import { minsTo, useInvalidate, Rise } from '@/screens/resident/parts';
 
@@ -74,7 +75,7 @@ export default function Track() {
   const now = useNow();
   const insets = useSafeAreaInsets();
   const invalidate = useInvalidate();
-  const { society } = useSession();
+  const { society, address } = useSession();
   const q = useRequestStatus(key);
   const s = q.data;
   const req = s?.request ?? null;
@@ -87,8 +88,16 @@ export default function Track() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [h, setH] = useState(800);
 
-  const name = aliasFor(rider);
   const stage = s?.stage ?? 'posted';
+  // "Runner didn't show up": the run ended after an accept with no handoff. The accept expires with the
+  // run, so it's known from the proof the no-show alert saved, or from this phone having seen the accept.
+  const ended = !!s?.lapsed && !s?.declined;
+  const noShowQ = useNoShow(key, ended);
+  const noShowProof = noShowQ.data?.proof ?? null;
+  const noShowReported = !!noShowQ.data?.complaint;
+  const noShow = ended && (noShowProof ? noShowProof.valid : sawAccepted(address, key));
+  const noShowRider = noShowProof?.noshow.rider ?? (findLog(key) as RequestLog | undefined)?.runner ?? null;
+  const name = aliasFor(rider ?? (noShow ? noShowRider : null));
   const ping = pings.data?.[0];
   const pin = run ? runnerPin(run, ping, now, { tier: profile.data?.tier.name ?? null, focused: true, trail: trail.data }) : null;
   const mins = run ? minsTo(run.eta, now) : 0;
@@ -101,11 +110,11 @@ export default function Track() {
   const logged = useRef<string | null>(null);
   useEffect(() => {
     if (!s || !req) return;
-    const outcome: RequestLog['outcome'] = s.complaint ? 'reported' : s.receipt ? 'rated' : s.delivery ? 'handed' : s.declined ? 'declined' : s.lapsed ? 'lapsed' : s.accept ? 'accepted' : 'sent';
+    const outcome: RequestLog['outcome'] = s.complaint ? 'reported' : s.receipt ? 'rated' : s.delivery ? 'handed' : s.declined ? 'declined' : noShow ? 'accepted' : s.lapsed ? 'lapsed' : s.accept ? 'accepted' : 'sent';
     if (logged.current === outcome) return;
     logged.current = outcome;
-    logActivity({ kind: 'request', key: req.key, runKey: req.run, runner: rider ?? '', items: req.items, maxPrice: req.maxPrice, tip: req.tip, at: req.createdAt, outcome, ...(shop.data ? { shop: shop.data.nameTag } : {}) });
-  }, [s, req, rider, shop.data]);
+    logActivity({ kind: 'request', key: req.key, runKey: req.run, runner: rider ?? noShowRider ?? '', items: req.items, maxPrice: req.maxPrice, tip: req.tip, at: req.createdAt, outcome, ...(shop.data ? { shop: shop.data.nameTag } : {}) });
+  }, [s, req, rider, shop.data, noShow]);
 
   const sendOther = () => {
     if (req) setDraft({ runKey: null, shopKey: null, items: req.items, maxPrice: req.maxPrice, tip: req.tip });
@@ -200,7 +209,18 @@ export default function Track() {
               </View>
             </Rise>
           ) : null}
-          {lapsed ? (
+          {noShow ? (
+            <Alert
+              tone="expired"
+              title={fill(c.track.noShow, { name })}
+              body={noShowReported ? c.track.reported : `${fill(c.track.noShowBody, { name })} ${fill(noShowProof?.valid ? c.track.noShowProven : c.track.noShowPending, { name })}`}
+              actions={
+                noShowProof?.valid && !noShowReported ? (
+                  <Button label={c.track.noShowReport} variant="destructive" size="md" full={false} onPress={() => router.push(`/request/${key}/report`)} />
+                ) : undefined
+              }
+            />
+          ) : lapsed ? (
             <Alert tone="expired" title={fill(s?.declined ? c.track.declined : c.track.lapsed, { name })} body={c.track.lapsedBody} />
           ) : (
             <Rise index={1}>

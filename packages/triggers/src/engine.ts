@@ -160,6 +160,8 @@ interface RetryItem {
   event: TriggerEvent;
   entity: SnapEntity & { key: string };
   attempts: number;
+  /** Late `expiring`: the past block to evaluate at (bigint as string). */
+  asOf?: string;
 }
 
 export interface EngineState {
@@ -278,6 +280,12 @@ interface Candidate {
   event: TriggerEvent;
   id: Hex;
   attempts: number;
+  /**
+   * Evaluate at this past block instead of head: a late `expiring` (the entity expired before any
+   * tick saw it inside its lead window, e.g. the worker was down). The guard and any attestation are
+   * evaluated at a block where the entity still existed, so re-verification at that block holds.
+   */
+  asOf?: bigint;
 }
 
 interface QueuedReceipt {
@@ -440,17 +448,30 @@ export function createTriggerEngine(opts: TriggerEngineOptions): TriggerEngine {
     });
   }
 
-  async function guardBlocks(t: Trigger, report: TickReport): Promise<boolean> {
+  async function guardBlocks(t: Trigger, report: TickReport, asOf?: bigint): Promise<boolean> {
     if (!t.unless) return false;
     report.queries++;
     const u = t.unless;
-    const rows = await port.query({
+    const reader = asOf !== undefined ? await port.at(asOf) : port;
+    const rows = await reader.query({
       where: [...baseWhere(u.project, u.type), ...u.where],
       ...(u.owner ? { owner: u.owner } : {}),
       ...(u.creator ? { creator: u.creator } : {}),
     });
-    const now = clock();
+    const now = asOf !== undefined ? reader.now() : clock();
     return rows.some((r) => r.expiresAt > now);
+  }
+
+  /** The last block whose time is before `unix` (estimated from 2 s blocks, then checked with at()). */
+  async function blockBefore(unix: number): Promise<bigint> {
+    const head = await port.blockNumber();
+    let b = head - BigInt(Math.max(1, Math.ceil((clock() - (unix - 3)) / 2)));
+    for (let i = 0; i < 4 && b > 0n; i++) {
+      const t = (await port.at(b)).now();
+      if (t < unix) return b;
+      b -= BigInt(Math.max(1, Math.ceil((t - unix + 3) / 2)));
+    }
+    return b > 0n ? b : 0n;
   }
 
   const mine = (t: Trigger) => t.worker === me;
@@ -511,9 +532,9 @@ export function createTriggerEngine(opts: TriggerEngineOptions): TriggerEngine {
       return { kind: 'done' };
     }
 
-    // 3. Guard at head. Suppression is local only (no receipt, no gas).
-    const block = await headBlock();
-    if (!skip && (await guardBlocks(t, report))) {
+    // 3. Guard at head (or at the late-expiring block). Suppression is local only (no receipt, no gas).
+    const block = c.asOf ?? (await headBlock());
+    if (!skip && (await guardBlocks(t, report, c.asOf))) {
       st.seen[c.id] = clock();
       report.suppressed++;
       log('debug', 'suppressed by unless', { trigger: t.key, entity: c.entity.key, event: c.event });
@@ -747,7 +768,7 @@ export function createTriggerEngine(opts: TriggerEngineOptions): TriggerEngine {
       const t = byKey.get(r.trigger as EntityKey);
       delete st.retry[id];
       if (!t) continue;
-      candidates.push({ trigger: t, entity: unsnap(r.entity.key, r.entity), event: r.event, id: id as Hex, attempts: r.attempts });
+      candidates.push({ trigger: t, entity: unsnap(r.entity.key, r.entity), event: r.event, id: id as Hex, attempts: r.attempts, ...(r.asOf ? { asOf: BigInt(r.asOf) } : {}) });
     }
 
     const nextWatches: Record<string, WatchState> = {};
@@ -772,6 +793,19 @@ export function createTriggerEngine(opts: TriggerEngineOptions): TriggerEngine {
           const raw = unsnap(key, e);
           if (e.expiresAt <= now + EXPIRY_SLACK) {
             for (const t of ts) if (t.on === 'expired' && e.expiresAt >= t.createdAt) candidates.push(mk(t, raw, 'expired'));
+            // Missed its `expiring` window (no tick inside the lead before it expired): fire it late,
+            // evaluated at the last block before expiry so the entity still existed there.
+            const late = ts.filter((t) => t.on === 'expiring' && e.expiresAt >= t.createdAt && st.seen[firingId(t.key, raw.key, 'expiring')] === undefined);
+            if (late.length) {
+              try {
+                report.queries++;
+                const asOf = await blockBefore(e.expiresAt);
+                for (const t of late) candidates.push({ ...mk(t, raw, 'expiring'), asOf });
+              } catch (err) {
+                report.errors++;
+                log('warn', 'late expiring: block lookup failed', { entity: key, error: errText(err) });
+              }
+            }
             continue;
           }
           const wantsDeleted = ts.filter((t) => t.on === 'deleted' && st.primed[t.key] === 1);
@@ -816,7 +850,7 @@ export function createTriggerEngine(opts: TriggerEngineOptions): TriggerEngine {
         report.errors++;
         head = null;
         if (isTransient(e) && c.attempts + 1 < MAX_RETRY_ATTEMPTS) {
-          st.retry[c.id] = { trigger: c.trigger.key, event: c.event, entity: { ...snap(c.entity), key: c.entity.key }, attempts: c.attempts + 1 };
+          st.retry[c.id] = { trigger: c.trigger.key, event: c.event, entity: { ...snap(c.entity), key: c.entity.key }, attempts: c.attempts + 1, ...(c.asOf !== undefined ? { asOf: c.asOf.toString() } : {}) };
         }
         log('warn', 'trigger evaluation failed', {
           trigger: c.trigger.key,

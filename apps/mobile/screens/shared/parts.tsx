@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ChevronLeft, Settings as SettingsIcon } from 'lucide-react-native';
-import type { Address, Attestation, AttestationLevel, Complaint, Profile, VerifiedReceipt } from '@bhaiya-please/core';
+import type { Address, Attestation, AttestationLevel, Complaint, NoShow, Profile, VerifiedReceipt } from '@bhaiya-please/core';
 import {
   Animated, DUR, EASE, FadeIn, FadeInDown, useReducedMotion,
   Avatar, AvatarStack, CountChip, Crowd, Glass, HardShadow, Icon, IconButton, LEVEL_LIMITS, LevelPlate, NamePlate, PrivacyLine, RollingDigits,
@@ -231,9 +231,13 @@ export function Vouches({ list, title = true }: { list: Attestation[]; title?: b
   );
 }
 
-export function Reports({ list, now }: { list: Complaint[]; now: number }) {
+const longDate = (unix: number) => new Date(unix * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+/** Reports (last 30 days) and verified no-shows (last 30 days), each visible row by row. */
+export function Reports({ list, now, noShows = [] }: { list: Complaint[]; now: number; noShows?: NoShow[] }) {
   const c = useCopy(sharedCopy);
   const recent = list.filter((x) => x.createdAt >= now - 30 * 86400);
+  const shows = noShows.filter((x) => x.createdAt >= now - 30 * 86400);
   return (
     <View className="gap-2">
       <Text className="text-[17px] font-bold">{c.profile.reports}</Text>
@@ -242,12 +246,30 @@ export function Reports({ list, now }: { list: Complaint[]; now: number }) {
           {recent.map((r, i) => (
             <View key={r.key} className={cn('gap-0.5 px-3.5 py-3', i < recent.length - 1 && 'border-b-2 border-line')}>
               <Text className="text-[15px] font-bold">{fill(c.profile.reportLine, { reason: c.reasons[r.reason] })}</Text>
-              <Text className="text-[13px] text-muted">{fill(c.profile.reportMeta, { name: aliasFor(r.creator), date: new Date(r.createdAt * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }), until: monthYear(r.expiresAt) })}</Text>
+              <Text className="text-[13px] text-muted">{fill(c.profile.reportMeta, { name: aliasFor(r.creator), date: longDate(r.createdAt), until: monthYear(r.expiresAt) })}</Text>
             </View>
           ))}
         </View>
       ) : (
         <Text className="text-[15px] text-muted">{c.profile.none}</Text>
+      )}
+      <View className="mt-2 flex-row items-center justify-between">
+        <Text className="text-[17px] font-bold">{c.profile.noShows}</Text>
+        <View accessibilityLabel={`${shows.length} ${c.profile.noShows}`} className={cn('min-w-[32px] items-center rounded-plate border-2 px-2 py-0.5', shows.length ? 'border-ink bg-mirchi' : 'border-line')}>
+          <Text className={cn('font-display text-[14px]', shows.length ? 'text-ink' : 'text-muted')}>{shows.length}</Text>
+        </View>
+      </View>
+      {shows.length ? (
+        <View className="overflow-hidden rounded-block border-2 border-line bg-surface">
+          {shows.map((n, i) => (
+            <View key={n.key} className={cn('gap-0.5 px-3.5 py-3', i < shows.length - 1 && 'border-b-2 border-line')}>
+              <Text className="text-[15px] font-bold">{fill(c.profile.noShowLine, { date: longDate(n.at || n.createdAt) })}</Text>
+              <Text className="text-[13px] leading-[18px] text-muted">{c.profile.noShowMeta}</Text>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <Text className="text-[15px] text-muted">{c.profile.noShowsNone}</Text>
       )}
     </View>
   );

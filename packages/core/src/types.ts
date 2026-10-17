@@ -143,7 +143,8 @@ export interface Receipt extends EntityMeta {
   tags: ReceiptTag[];
 }
 
-export type ComplaintReason = 'no_show' | 'wrong_item' | 'rude';
+/** no_show needs verified noshow evidence; wrong_item, rude and other need the rider's recorded delivery. */
+export type ComplaintReason = 'no_show' | 'wrong_item' | 'rude' | 'other';
 
 export interface Complaint extends EntityMeta {
   rider: Address;

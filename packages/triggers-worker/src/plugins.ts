@@ -25,7 +25,7 @@ export function noShowPlugin(project = 'bhaiyaplease'): AttestPlugin {
     // Gas-griefing guard: only the resident who sent the request may ask for no-show evidence.
     const req = await port.get(request as EntityKey);
     if (!req || req.creator.toLowerCase() !== t.creator) return null;
-    const ev = await buildNoShowEvidence(port, project, request as EntityKey);
+    const ev = await buildNoShowEvidence(port, project, request as EntityKey, { atBlock: ctx.block });
     return ev ? ev.spec : null;
   };
 }

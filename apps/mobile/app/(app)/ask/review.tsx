@@ -4,7 +4,7 @@ import type { EntityKey } from '@bhaiya-please/core';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Alert, BillCard, Button, Empty, PrivacyLine, SaveButton, Screen, Text, TextButton } from '@/components/bp';
-import { useCore } from '@/components/providers';
+import { useCore, useSession } from '@/components/providers';
 import { useProfile, useRun, useShop } from '@/hooks/queries';
 import { useNow } from '@/hooks/useNow';
 import { describeError } from '@/hooks/useTx';
@@ -14,12 +14,14 @@ import { appEvent } from '@/lib/events';
 import { saveSecret } from '@/lib/handoff';
 import { logActivity } from '@/lib/history';
 import { fill, useCopy, useT } from '@/lib/i18n';
+import { alertsAfterRequestSent } from '@/lib/triggers';
 import { residentCopy } from '@/screens/resident/copy';
 import { minsTo, runOpen, useGuestGate, useInvalidate, Rise } from '@/screens/resident/parts';
 
 export default function Review() {
   const router = useRouter();
   const core = useCore();
+  const { address } = useSession();
   const t = useT();
   const c = useCopy(residentCopy);
   const now = useNow();
@@ -50,6 +52,8 @@ export default function Review() {
       at: Math.floor(Date.now() / 1000), outcome: 'sent',
     });
     appEvent('request.sent');
+    // Alerts for this request (accepted, at the gate, handed over, declined): one background write.
+    if (address) alertsAfterRequestSent(core, address, res.key);
     void invalidate();
     return res;
   };

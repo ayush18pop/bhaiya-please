@@ -16,6 +16,7 @@ import { nowSec } from '@/lib/format';
 import { logActivity } from '@/lib/history';
 import { fill, t, useCopy } from '@/lib/i18n';
 import { setSharing } from '@/lib/sharing';
+import { alertsAfterGoLive } from '@/lib/triggers';
 import { AREAS, placeName, SOCIETIES, societyById } from '@/lib/societies';
 import { cn } from '@/lib/utils';
 import { runnerCopy } from '@/screens/runner/copy';
@@ -118,6 +119,8 @@ export default function StartRun() {
                 recentTrips: [{ dest: society.id, from, minutes: mins, capacity: cap }, ...pr.recentTrips.filter((x) => !(x.dest === society.id && x.from === from))].slice(0, 3),
               }));
               appEvent('run.started');
+              // Alerts for this run (new requests, run ending): one background write.
+              if (address) alertsAfterGoLive(core, address, r.key);
               void qc.invalidateQueries();
               router.replace('/home');
             }}

@@ -48,7 +48,7 @@ export const receiptTagsSchema = z
   .array(receiptTagSchema)
   .max(5)
   .refine((tags) => new Set(tags).size === tags.length, 'duplicate tags');
-export const complaintReasonSchema = z.enum(['no_show', 'wrong_item', 'rude']);
+export const complaintReasonSchema = z.enum(['no_show', 'wrong_item', 'rude', 'other']);
 export const attestationLevelSchema = z.enum(['id_checked', 'resident', 'successor']);
 export const tierLevelSchema = z.union([z.literal(0), z.literal(1), z.literal(2)]);
 

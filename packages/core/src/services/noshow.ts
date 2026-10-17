@@ -44,6 +44,8 @@ export interface NoShowOptions {
   /** Reserved: no-show evidence does not depend on attestations today. */
   trustedVerifiers?: readonly Address[];
   drop?: DropSink;
+  /** buildNoShowEvidence only: evaluate at this block instead of head. */
+  atBlock?: bigint;
 }
 
 interface Facts {
@@ -103,7 +105,9 @@ export async function buildNoShowEvidence(
   opts: NoShowOptions = {},
 ): Promise<NoShowEvidence | null> {
   const k = parseOrThrow(keySchema, requestKey, 'requestKey');
-  const block = await port.blockNumber();
+  // atBlock: build at a past block (e.g. just before the accept expired, when a trigger worker
+  // missed the live window). Verification re-reads at the same block, so this stays trustless.
+  const block = opts.atBlock ?? (await port.blockNumber());
   const historical = await port.at(block);
   const ev = await evaluate(reader(memoGets(historical), project, opts.drop), k);
   if (!ev.ok) return null;

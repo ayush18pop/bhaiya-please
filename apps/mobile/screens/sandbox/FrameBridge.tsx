@@ -3,6 +3,7 @@
  * 1. Follows the sandbox clock: applies `{bp:'clock', offset}` posted by the split view (F5
  *    fast-forward) and re-syncs from the mock chain's persisted clock every few seconds.
  * 2. On phones (no split view), shows the compact guided-tour coach card while a tour runs.
+ * 3. Runs the in-page Arkiv Triggers engine (TriggerHost) so alerts work without a server.
  * Renders nothing outside the sandbox.
  */
 import { useEffect } from 'react';
@@ -20,6 +21,7 @@ import { fill, useCopy } from '@/lib/i18n';
 import type { Mode } from '@/lib/session';
 import { sandboxCopy, tourSteps } from './copy';
 import { setTourStep, useTourStep } from './tourState';
+import { TriggerHost } from './TriggerHost';
 
 function useClockSync() {
   const { core, sandbox } = useSession();
@@ -104,8 +106,13 @@ function TourCoach() {
 export function FrameBridge() {
   const { sandbox, framed } = useSession();
   useClockSync();
-  if (!sandbox || framed) return null;
-  return <TourCoach />;
+  if (!sandbox) return null;
+  return (
+    <>
+      <TriggerHost />
+      {framed ? null : <TourCoach />}
+    </>
+  );
 }
 
 export default FrameBridge;
