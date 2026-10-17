@@ -184,6 +184,28 @@ Setup: SDK `@arkiv-network/sdk` **0.8.1**, `viem` 2.57.7, Node 20, Tiramisu (cha
 - **Actual**: the fixture history (38 handoffs, ~5 dependent transactions each, every one waiting for its receipt) took **≈ 40 minutes** wall clock (8.5 min before the first run was interrupted, then 1,868 s for `--resume`), dominated by receipt waits and by profile recomputation before each tier-gated write (a profile read joins every receipt to its Delivery and Request, so it grows with history). Dependencies (request key must exist before the delivery reveals it; receipt needs the delivery) prevent batching across steps, and per-wallet nonce ordering prevents parallelism within a wallet. Evidence: `chain`.
 - **Workaround**: run once; the heartbeat only adds cheap runs.
 
-## C. One thing Arkiv should improve first (draft)
+#### 21. The read quota is cost-based and undocumented, and its 429 looks like a rate limit
+- **SDK**: 0.8.1 + viem 2.57.7. **Surface**: public RPC `https://rpc.tiramisu.db-chain.testnet.arkiv.network`, `arkiv_query`, with and without an access key.
+- **Expected**: a documented quota (per key and anonymous) with a clear error, or a `Retry-After` that clients can act on, distinct from the "600 requests/min" rate limit.
+- **Actual**: on 17 Oct two fresh access keys in a row stopped answering `arkiv_query` with HTTP 429 `{"error":"QUOTA_EXCEEDED","message":"quota exhausted"}`, and anonymous reads with 429 `{"error":"ANON_COST_LIMITED","message":"unauthenticated query budget exhausted; get an API key at https://hub.arkiv.network for a monthly quota"}`. Other teams measured about 100 cost units per query against a 10,000-unit anonymous window. `eth_blockNumber` and writes kept working. Because it is a 429, viem's default HTTP transport retries it (3×), and so did our core and React Query on top. One idle app tab measured **536 calls/min**, nearly all retries of refused reads, which burned the next key faster. Evidence: `chain` (curl on both paths, request counts captured in headless Chromium by query type).
+- **Reproduce**: exhaust a key, then `curl -H 'X-API-KEY: <key>' -d '{"jsonrpc":"2.0","id":1,"method":"arkiv_query","params":["project = str(\'bhaiyaplease\') AND type = str(\'shop\')",{"select":{"key":true}}]}' <rpc>` → 429 `QUOTA_EXCEEDED`; the same without the header → 429 `ANON_COST_LIMITED` (once the anonymous budget is spent).
+- **Workaround**: `classify()` maps both bodies to `QUOTA_EXHAUSTED`, which is never retried; viem `retryCount: 0` (the adapter owns retries); keyed → anonymous fallback, then a 60 s read breaker (`packages/core/src/arkiv/adapter.ts`); per-query-family polling (live board 20 s, profiles 2 min, shops 5 min). Idle cost fell to **10 calls/min**. A test pins the classification (`packages/core/test/quota.test.ts`).
+- **Fix that would help**: publish the cost table and quotas, expose remaining budget (e.g. `X-RateLimit-Remaining` that clients can read, or a hub usage page per key), and use a non-429 status or a code viem won't retry for a spent quota.
+- **Time lost (estimate)**: 4 h (diagnosis, measurement, the fix, and re-testing on new keys).
 
-Make the write-side as inspectable as the read-side: batch results that reflect on-chain effects (finding 4), a first-class way to predict-and-create so the salt cannot be forgotten (finding 3), and a project-scoped event filter (finding 13). Final wording after the spike.
+#### 22. A browser app pays one read per foreign entity to use `watchEntityEvents` on the shared testnet
+- **SDK**: 0.8.1. **Symbol**: `publicClient.watchEntityEvents` (see also finding 13).
+- **Expected**: subscribe to one project's events without paying for everyone else's.
+- **Actual**: events carry no attributes, so classifying a created key needs a `get` (an `arkiv_query`, about 100 cost units). On a busy shared testnet our watcher spent about 87 reads/min classifying other projects' entities. Under a cost quota, real-time events are unaffordable in the browser. Evidence: `chain` (headless capture: `$key = key(…)` queries/min with the app idle).
+- **Workaround**: no global watcher in real mode; screens poll their own small queries, and push comes from Arkiv Triggers (one shared worker watching, finding 23).
+- **Fix that would help**: server-side filtering on events (project / type attributes), or attributes included in the event.
+- **Time lost (estimate)**: included in 21.
+
+#### 23. Historical reads (`atBlock`) made a trustless no-show proof possible (positive)
+- **SDK**: 0.8.1. **Symbols**: query builder `.atBlock(n)`, historical `getEntity`.
+- **Expected / actual**: a past block's state can be re-read by anyone, so "the runner accepted and no delivery existed at block B" is checkable without trusting whoever wrote it. Our `noshow` evidence stores B; `verifyNoShowEvidence` re-reads at B and refuses forged evidence (wrong rider, delivery present, block before ETA, later delivery). Worked as documented on Tiramisu. Evidence: `chain` + `packages/core/test/noshow.test.ts`.
+- **One gap**: there is no documented retention window for historical reads. Evidence that outlives that window cannot be re-verified, so we would like to know it.
+
+## C. One thing Arkiv should improve first
+
+**Make the read budget visible and safe to hit.** Publish the query cost model and quotas, show remaining budget per key, and answer a spent quota with something clients do not retry (finding 21). Every serious browser app on the testnet hit this wall: most teams built a server-side read relay, and the retries made it worse. A project-scoped event filter (findings 13 and 22) would remove the biggest hidden cost. After that: batch results that reflect on-chain effects (finding 4) and a first-class predict-and-create (finding 3).
