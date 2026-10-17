@@ -5,10 +5,22 @@ import { revealMatches } from '../codec/handoff';
 import { addressSchema, complaintReasonSchema, keySchema } from '../codec/schemas';
 import { parseOrThrow } from '../codec/validate';
 import { BhaiyaPleaseError } from '../types';
-import type { Address, Complaint, FileComplaintInput, MutationResult, Request, UnixSeconds } from '../types';
+import type { Address, Complaint, EntityKey, FileComplaintInput, MutationResult, Request, UnixSeconds } from '../types';
 import type { Predicate } from '../arkiv/port';
 import { extensionMovesLater, reader, requireSigner, sameAddr, TTL } from './context';
 import type { Reader, ServiceContext } from './context';
+import { loadNoShowsForRequest } from './noshow';
+
+/** "Does a verified noshow by `rider` exist for this request?" (see services/noshow.ts). */
+export type NoShowLookup = (requestKey: EntityKey, rider: Address) => Promise<boolean>;
+
+/** Lookup that verifies each request's noshows on demand (only no_show complaints need it). */
+export function noShowLookup(ctx: ServiceContext, rd: Reader): NoShowLookup {
+  return async (requestKey, rider) => {
+    const list = await loadNoShowsForRequest(ctx.port, rd, ctx.project, requestKey, rider, ctx.drop ? { drop: ctx.drop } : {});
+    return list.some((v) => v.valid);
+  };
+}
 
 const fileSchema = z.object({ requestKey: keySchema, rider: addressSchema, reason: complaintReasonSchema });
 
@@ -33,12 +45,18 @@ export async function riderDelivered(rd: Reader, request: Request, rider: Addres
 
 /**
  * Complaints about `rider`, keeping only those filed by the requester of the referenced request
- * for a request the rider provably delivered (stops drive-by complaints: without the delivery
- * check, any wallet with ANY request could complain about ANY rider), one per request, newest first.
- * Known limit: a no-show without a recorded delivery cannot be proven on chain (the Accept dies
- * with the run), so it does not count; the app only offers complaints after a delivery.
+ * with on-chain evidence (stops drive-by complaints: without it, any wallet with ANY request could
+ * complain about ANY rider), one per request, newest first. Evidence:
+ *   - reason 'no_show': a verified `noshow` for the request naming the rider (`noShowFor`; without
+ *     a lookup, no_show complaints never count);
+ *   - any other reason: the rider provably delivered the request (riderDelivered).
  */
-export async function listComplaintsAgainst(rd: Reader, rider: Address, since?: UnixSeconds): Promise<Complaint[]> {
+export async function listComplaintsAgainst(
+  rd: Reader,
+  rider: Address,
+  since?: UnixSeconds,
+  noShowFor?: NoShowLookup,
+): Promise<Complaint[]> {
   const where: Predicate[] = [{ op: 'eq', name: 'rider', value: attr('rider', rider) }];
   if (since !== undefined) where.push({ op: 'gte', name: 'at', value: u64V(Math.max(0, Math.floor(since))) });
   const list = await rd.list('complaint', decode.complaint, where);
@@ -47,6 +65,7 @@ export async function listComplaintsAgainst(rd: Reader, rider: Address, since?: 
       if (!sameAddr(c.rider, rider) || sameAddr(c.creator, c.rider)) return null;
       const req = await rd.one(c.request, decode.request);
       if (!req || !sameAddr(req.creator, c.creator)) return null;
+      if (c.reason === 'no_show') return noShowFor && (await noShowFor(req.key, rider)) ? c : null;
       return (await riderDelivered(rd, req, rider)) ? c : null;
     }),
   );
@@ -74,7 +93,14 @@ export function complaintService(ctx: ServiceContext) {
       ], { creator: self });
       if (existing.length > 0) throw new BhaiyaPleaseError('INVALID_INPUT', 'Complaint already filed for this request');
       // Same evidence rule every viewer applies, checked before spending gas.
-      if (!(await riderDelivered(rd(), request, i.rider))) {
+      if (i.reason === 'no_show') {
+        if (!(await noShowLookup(ctx, rd())(request.key, i.rider))) {
+          throw new BhaiyaPleaseError(
+            'INVALID_INPUT',
+            'No verified no-show evidence for this request yet: it is recorded after the run\'s ETA passes without a delivery (Arkiv Triggers)',
+          );
+        }
+      } else if (!(await riderDelivered(rd(), request, i.rider))) {
         throw new BhaiyaPleaseError('INVALID_INPUT', 'This runner has no recorded delivery for your request');
       }
 
@@ -93,7 +119,9 @@ export function complaintService(ctx: ServiceContext) {
       });
     },
 
-    getComplaintsAgainst: (rider: Address, sinceUnix?: UnixSeconds) =>
-      listComplaintsAgainst(rd(), parseOrThrow(addressSchema, rider, 'rider'), sinceUnix),
+    getComplaintsAgainst: (rider: Address, sinceUnix?: UnixSeconds) => {
+      const r = rd();
+      return listComplaintsAgainst(r, parseOrThrow(addressSchema, rider, 'rider'), sinceUnix, noShowLookup(ctx, r));
+    },
   };
 }

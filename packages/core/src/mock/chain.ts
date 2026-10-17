@@ -17,6 +17,7 @@ import type {
   QueryAst,
   RawEntity,
   RawEvent,
+  ReadPort,
   Writer,
 } from '../arkiv/port';
 import { createWriteQueue } from '../arkiv/queue';
@@ -38,11 +39,24 @@ export interface MockChainOptions {
   rejectSameBatchTransfer?: boolean;
 }
 
+/** A superseded (patched/extended/transferred/deleted/pruned) version of an entity, for at(block). */
+interface PastVersion {
+  entity: RawEntity;
+  /** First block the version was visible at (inclusive). */
+  since: number;
+  /** First block it was no longer visible at (exclusive). */
+  until: number;
+}
+
 interface State {
   entities: Record<string, RawEntity>;
   nonces: Record<string, number>;
   clockOffset: number;
   tx: number;
+  /** Block at which each current entity version appeared (absent in old persisted state → 0). */
+  since?: Record<string, number>;
+  /** Superseded versions, so at(block) can rebuild the state at any recent block. */
+  past?: PastVersion[];
 }
 
 const CHAIN_ID = 7738577n;
@@ -56,9 +70,18 @@ const RESERVED = new Set(
   'and or not true false startswith exists typeof bool i32 u64 u256 dec bytes32 bytes str addr key'.split(' '),
 );
 export const DEFAULT_STORAGE_KEY = 'bhaiyaplease.mock.v1';
+/** Mock block time: block = floor(unix / 2), like Tiramisu's 2 s blocks. */
+export const MOCK_BLOCK_SECONDS = 2;
+/** History kept for at(block): superseded versions of entities that expired longer ago are dropped. */
+const HISTORY_SECONDS = 200 * 86_400;
+const MAX_PAST_VERSIONS = 3000;
+const NEVER = Number.MAX_SAFE_INTEGER;
 export const MOCK_BALANCE = 10n ** 18n;
 
-const emptyState = (): State => ({ entities: {}, nonces: {}, clockOffset: 0, tx: 0 });
+const emptyState = (): State => ({ entities: {}, nonces: {}, clockOffset: 0, tx: 0, since: {}, past: [] });
+const blockOf = (unix: number) => Math.floor(unix / MOCK_BLOCK_SECONDS);
+/** Pings are high-volume and irrelevant to historical reads: never kept in history. */
+const isPing = (e: RawEntity) => e.attributes.type?.value === 'ping';
 const err = (code: ConstructorParameters<typeof BhaiyaPleaseError>[0], msg: string) => new BhaiyaPleaseError(code, msg);
 
 export function mockEntityKey(owner: Address, nonce: number, salt: bigint): EntityKey {
@@ -172,18 +195,39 @@ export class MockChain {
   }
 
   query(q: QueryAst): RawEntity[] {
-    if (q.where.length === 0) throw err('INVALID_INPUT', 'query needs at least one predicate');
-    const owner = q.owner?.toLowerCase();
-    const creator = q.creator?.toLowerCase();
-    return Object.values(this.state.entities)
-      .filter(
-        (e) =>
-          this.isLive(e) &&
-          (!owner || e.owner === owner) &&
-          (!creator || e.creator === creator) &&
-          q.where.every((p) => matches(e, p)),
-      )
-      .map(structuredCloneEntity);
+    return queryIn(Object.values(this.state.entities), q, this.now());
+  }
+
+  get blockNumber(): number {
+    return blockOf(this.now());
+  }
+
+  /**
+   * Entities as they were after the last transaction of `block` (expiry is applied by the reader at
+   * that block's time). Throws INVALID_INPUT for a future block, UNKNOWN before the kept history.
+   */
+  entitiesAt(block: number): RawEntity[] {
+    if (block > this.blockNumber) throw err('INVALID_INPUT', `block ${block} is in the future`);
+    const since = this.state.since ?? {};
+    const out: RawEntity[] = [];
+    for (const [k, e] of Object.entries(this.state.entities)) if ((since[k] ?? 0) <= block) out.push(e);
+    for (const v of this.state.past ?? []) if (v.since <= block && block < v.until) out.push(v.entity);
+    return out;
+  }
+
+  /** A read view at a past block: like the real adapter's `atBlock` reads. */
+  readAt(block: number): ReadPort {
+    const entities = this.entitiesAt(block);
+    const time = block * MOCK_BLOCK_SECONDS;
+    const byKey = new Map(entities.map((e) => [e.key, e]));
+    return {
+      now: () => time,
+      query: async (q) => queryIn(entities, q, time),
+      get: async (key) => {
+        const e = byKey.get(key.toLowerCase() as EntityKey);
+        return e && e.expiresAt > time ? structuredCloneEntity(e) : null;
+      },
+    };
   }
 
   // ---------------------------------------------------------------- writes
@@ -203,6 +247,8 @@ export class MockChain {
       ...this.state,
       entities: { ...this.state.entities },
       nonces: { ...this.state.nonces },
+      since: { ...(this.state.since ?? {}) },
+      past: [...(this.state.past ?? [])],
     };
     const events: RawEvent[] = [];
     const created = this.apply(work, sender, ops, events);
@@ -216,7 +262,22 @@ export class MockChain {
 
   private apply(s: State, sender: Address, ops: BatchOps, events: RawEvent[]): EntityKey[] {
     const now = this.now();
+    const block = blockOf(now);
     const created: EntityKey[] = [];
+    const since = (s.since ??= {});
+    const past = (s.past ??= []);
+    /** Replace (or delete, with null) an entity, keeping the old version for at(block). */
+    const put = (key: string, next: RawEntity | null) => {
+      const old = s.entities[key];
+      if (old && !isPing(old)) past.push({ entity: old, since: since[key] ?? 0, until: block });
+      if (next) {
+        s.entities[key] = next;
+        since[key] = block;
+      } else {
+        delete s.entities[key];
+        delete since[key];
+      }
+    };
     const total =
       (ops.creates?.length ?? 0) +
       (ops.patches?.length ?? 0) +
@@ -241,7 +302,7 @@ export class MockChain {
       const key = mockEntityKey(sender, nonce, spec.salt ?? randomSalt());
       if (s.entities[key]) throw err('INVALID_INPUT', 'entity key collision (salt reused)');
       s.nonces[sender] = nonce + 1;
-      s.entities[key] = {
+      put(key, {
         key,
         owner: sender,
         creator: sender,
@@ -252,7 +313,7 @@ export class MockChain {
         attributes: Object.fromEntries(Object.entries(spec.attributes).map(([n, v]) => [n, { ...v }])),
         payload: spec.payload,
         contentType: 'application/json',
-      };
+      });
       created.push(key);
       events.push({ kind: 'created', key, owner: sender });
     }
@@ -264,13 +325,13 @@ export class MockChain {
       validateAttrs(p.set);
       const attributes = { ...e.attributes };
       for (const [n, v] of Object.entries(p.set)) attributes[n] = { ...v };
-      s.entities[e.key] = { ...e, attributes };
+      put(e.key, { ...e, attributes });
       events.push({ kind: 'patched', key: e.key, owner: e.owner });
     }
     for (const k of ops.deletes ?? []) {
       const e = live(k);
       mustOwn(e);
-      delete s.entities[e.key];
+      put(e.key, null);
       events.push({ kind: 'deleted', key: e.key, owner: e.owner });
     }
     for (const x of ops.extensions ?? []) {
@@ -280,7 +341,7 @@ export class MockChain {
       }
       const expiresAt = now + lifetimeSeconds(x.seconds);
       if (expiresAt <= e.expiresAt) throw err('INVALID_INPUT', `entity ${e.key} already expires later (ExpiryNotExtended)`);
-      s.entities[e.key] = { ...e, expiresAt };
+      put(e.key, { ...e, expiresAt });
       events.push({ kind: 'extended', key: e.key, owner: e.owner });
     }
     for (const t of ops.transfers ?? []) {
@@ -292,21 +353,35 @@ export class MockChain {
       const to = t.to.toLowerCase() as Address;
       if (to === ZERO) throw err('INVALID_INPUT', 'transfer to zero address');
       if (to === e.owner) throw err('INVALID_INPUT', 'transfer to self');
-      s.entities[e.key] = { ...e, owner: to };
+      put(e.key, { ...e, owner: to });
       events.push({ kind: 'transferred', key: e.key, owner: e.owner, newOwner: to });
     }
     return created;
   }
 
-  /** Drops entities that expired more than a day ago (keeps storage bounded). */
+  /**
+   * Drops entities that expired more than a day ago from the live set (keeps storage bounded); they
+   * move to history so at(block) still sees them while they were live. History older than
+   * HISTORY_SECONDS (by expiry) and beyond MAX_PAST_VERSIONS is dropped.
+   */
   private pruneExpired() {
-    const cutoff = this.now() - 86_400;
-    for (const [k, e] of Object.entries(this.state.entities)) if (e.expiresAt < cutoff) delete this.state.entities[k];
-    // Live-location pings are high-volume and worthless once expired: drop them right away.
     const now = this.now();
+    const cutoff = now - 86_400;
+    const since = (this.state.since ??= {});
+    const past = (this.state.past ??= []);
     for (const [k, e] of Object.entries(this.state.entities)) {
-      if (e.expiresAt <= now && e.attributes.type?.value === 'ping') delete this.state.entities[k];
+      // Live-location pings are high-volume and worthless once expired: drop them right away.
+      const ping = isPing(e);
+      if (e.expiresAt < cutoff || (ping && e.expiresAt <= now)) {
+        if (!ping) past.push({ entity: e, since: since[k] ?? 0, until: NEVER });
+        delete this.state.entities[k];
+        delete since[k];
+      }
     }
+    const keepAfter = now - HISTORY_SECONDS;
+    let kept = past.filter((v) => v.entity.expiresAt > keepAfter && v.since < v.until);
+    if (kept.length > MAX_PAST_VERSIONS) kept = kept.sort((a, b) => a.until - b.until).slice(-MAX_PAST_VERSIONS);
+    this.state.past = kept;
   }
 
   // ---------------------------------------------------------------- cross-tab
@@ -366,8 +441,9 @@ export class MockChain {
         await gate();
         return chain.get(key);
       },
-      at: async () => {
-        throw err('UNKNOWN', 'not implemented: historical (atBlock) reads are not simulated by the mock');
+      at: async (block) => {
+        await gate();
+        return chain.readAt(Number(block));
       },
       write: async (fn) => {
         await gate();
@@ -377,9 +453,27 @@ export class MockChain {
       },
       watch: (cb) => chain.subscribe(cb),
       balance: async () => MOCK_BALANCE,
-      blockNumber: async () => BigInt(Math.floor(chain.now() / 2)),
+      blockNumber: async () => BigInt(chain.blockNumber),
     };
   }
+}
+
+function queryIn(entities: Iterable<RawEntity>, q: QueryAst, now: UnixSeconds): RawEntity[] {
+  if (q.where.length === 0) throw err('INVALID_INPUT', 'query needs at least one predicate');
+  const owner = q.owner?.toLowerCase();
+  const creator = q.creator?.toLowerCase();
+  const out: RawEntity[] = [];
+  for (const e of entities) {
+    if (
+      e.expiresAt > now &&
+      (!owner || e.owner === owner) &&
+      (!creator || e.creator === creator) &&
+      q.where.every((p) => matches(e, p))
+    ) {
+      out.push(structuredCloneEntity(e));
+    }
+  }
+  return out;
 }
 
 function matches(e: RawEntity, p: Predicate): boolean {

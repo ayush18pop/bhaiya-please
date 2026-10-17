@@ -22,6 +22,8 @@ export const TTL = {
   shop: 30 * DAY,
   attestation: 180 * DAY,
   complaint: 180 * DAY,
+  /** No-show evidence lives as long as a complaint that may cite it. */
+  noshow: 180 * DAY,
   year: 365 * DAY,
   /** Run lives until eta + 10 min. */
   runAfterEta: 600,

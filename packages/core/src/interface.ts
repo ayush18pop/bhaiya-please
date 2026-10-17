@@ -52,7 +52,11 @@ import type {
   UnixSeconds,
   Ping,
   PingMeta,
+  NoShow,
+  NoShowVerification,
+  VerifiedNoShow,
 } from './types';
+import type { ArkivPort } from './arkiv/port';
 
 export interface BhaiyaPlease {
   // ------------------------------------------------------------------ wallet
@@ -172,10 +176,15 @@ export interface BhaiyaPlease {
   extendReceipt(receiptKey: EntityKey): Promise<MutationResult>;
 
   // ------------------------------------------------------------------ complaints
-  /** Resident files a complaint it keeps (runner can't delete). Also extends own Request to 180 d. Arkiv: executeBatch (create readonly + extension). */
+  /**
+   * Resident files a complaint it keeps (runner can't delete). Also extends own Request to 180 d.
+   * Evidence is checked before spending gas (INVALID_INPUT otherwise): 'no_show' needs a verified
+   * noshow for the request naming the rider; other reasons need the rider's valid Delivery.
+   * Arkiv: executeBatch (create readonly + extension).
+   */
   fileComplaint(input: FileComplaintInput): Promise<MutationResult>;
 
-  /** Complaints about `rider` (only where complaint.$creator == request.$creator). Arkiv: query `rider=addr AND at>…`. */
+  /** Complaints about `rider` (only where complaint.$creator == request.$creator, with evidence: a verified noshow for 'no_show', the rider's Delivery otherwise). Arkiv: query `rider=addr AND at>…`. */
   getComplaintsAgainst(rider: Address, sinceUnix?: UnixSeconds): Promise<Complaint[]>;
 
   // ------------------------------------------------------------------ attestations
@@ -203,6 +212,29 @@ export interface BhaiyaPlease {
 
   /** Current block number (for stamping the dispute view). */
   getBlockNumber(): Promise<bigint>;
+
+  // ------------------------------------------------------------------ no-show evidence (Arkiv Triggers)
+  /**
+   * Trustless check of a `noshow` (any $creator): re-reads the chain AT noshow.block and requires the
+   * request, its trusted run, the runner's own valid Accept `noshow.accept` with rider == noshow.rider
+   * == run.$creator, no trusted Delivery, and block time ≥ run.eta; then requires that the rider has
+   * not recorded a valid Delivery since. Arkiv: atBlock historical query.
+   */
+  verifyNoShow(noshow: NoShow): Promise<NoShowVerification>;
+
+  /** All noshows naming `rider`, each verified (one valid per request; later copies 'duplicate'). Newest first. Arkiv: query on addr attr + atBlock. */
+  getNoShowsFor(rider: Address): Promise<VerifiedNoShow[]>;
+
+  /** The verified noshow for a request, else the newest invalid one (with reason), else null. Arkiv: query on key attr + atBlock. */
+  getNoShowForRequest(requestKey: EntityKey): Promise<VerifiedNoShow | null>;
+
+  // ------------------------------------------------------------------ companion protocols
+  /**
+   * The underlying ArkivPort, for companion protocols such as Arkiv Triggers (they read with
+   * query/get/at and write through port.write(), which shares this wallet's write queue).
+   * Not for app screens: everything it returns is unvalidated and untrusted.
+   */
+  arkivPort(): ArkivPort;
 
   // ------------------------------------------------------------------ inspection / recovery
   /** Raw $creator/$owner/flags/expiry/attributes for the "on-chain proof" panel. Arkiv: getEntity system attrs. */
@@ -258,6 +290,11 @@ export interface MockBhaiyaPlease extends BhaiyaPlease {
     pingTick(): Promise<number>;
     /** The mock clock (unix seconds), which `advance` moves ahead of wall time. */
     now(): number;
+    /**
+     * An ArkivPort over the SAME in-memory chain acting as `address` (e.g. an in-page Arkiv Triggers
+     * worker with its own wallet). Same port per address.
+     */
+    port(address: Address | null): ArkivPort;
   };
 }
 

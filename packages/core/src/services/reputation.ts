@@ -12,6 +12,7 @@ import type {
   Delivery,
   DeliveryVerification,
   EntityKey,
+  NoShow,
   Profile,
   Receipt,
   ReceiptTag,
@@ -25,6 +26,7 @@ import { listAttestationsFor } from './attestations';
 import { listComplaintsAgainst } from './complaints';
 import { mapLimit, memoGets, reader, sameAddr } from './context';
 import type { Reader, ServiceContext } from './context';
+import { loadNoShowsFor } from './noshow';
 
 /** Does the reveal hash to the request's commit, and did the rider write it themselves? */
 export function verifyDeliveryData(delivery: Delivery, request: Request | null): DeliveryVerification {
@@ -100,6 +102,8 @@ export interface ProfileInput {
   complaints: Complaint[];
   /** Already marked trusted/untrusted; expired ones must not be present. */
   attestations: Attestation[];
+  /** Already verified (valid only), one per request. Default none. */
+  noShows?: NoShow[];
   now: UnixSeconds;
   atBlock?: bigint;
 }
@@ -113,6 +117,7 @@ export function computeProfile(i: ProfileInput): Profile {
   for (const r of valid) for (const t of r.tags) tagCounts[t] = (tagCounts[t] ?? 0) + 1;
   const verified = i.attestations.some((a) => a.trusted && a.expiresAt > i.now);
   const complaints30d = i.complaints.filter((c) => c.createdAt >= since).length;
+  const noShows = [...(i.noShows ?? [])].sort((a, b) => b.createdAt - a.createdAt);
   const receiptsTotal = valid.length;
   const distinctResidents = new Set(valid.map((r) => r.creator)).size;
   const profile: Profile = {
@@ -124,6 +129,8 @@ export function computeProfile(i: ProfileInput): Profile {
     invalidReceipts: i.receipts.length - receiptsTotal,
     complaints: i.complaints,
     complaints30d,
+    noShows,
+    noShows30d: noShows.filter((n) => n.createdAt >= since).length,
     attestations: i.attestations,
     verified,
     tier: tierFor({ verified, receiptsTotal, distinctResidents, complaints30d }),
@@ -168,11 +175,15 @@ export async function loadProfile(
   const prevs = attestations
     .filter((a) => a.trusted && a.level === 'successor' && a.prev && !sameAddr(a.prev, subject))
     .map((a) => a.prev as Address);
-  const [receipts, complaints] = await Promise.all([
+  // No-shows are listed through `r` (head or historical) but each is verified at its own block.
+  const [receipts, verifiedNoShows] = await Promise.all([
     loadVerifiedReceipts(rd, [subject, ...new Set(prevs)]),
-    listComplaintsAgainst(rd, subject),
+    loadNoShowsFor(ctx.port, rd, ctx.project, subject, ctx.drop ? { drop: ctx.drop } : {}),
   ]);
-  const input: ProfileInput = { address: subject, receipts, complaints, attestations, now: rd.now() };
+  const noShows = verifiedNoShows.filter((v) => v.valid).map((v) => v.noshow);
+  const proven = new Set(noShows.map((n) => n.request));
+  const complaints = await listComplaintsAgainst(rd, subject, undefined, async (requestKey) => proven.has(requestKey));
+  const input: ProfileInput = { address: subject, receipts, complaints, attestations, noShows, now: rd.now() };
   if (atBlock !== undefined) input.atBlock = atBlock;
   return computeProfile(input);
 }

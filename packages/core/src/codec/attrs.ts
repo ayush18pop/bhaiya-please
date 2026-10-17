@@ -41,6 +41,10 @@ export const ATTR = {
   // ---- live location (ping) ---- additive; ping also reuses run, rider, zone5, at
   gh7: 'str',
   seq: 'i32',
+  // ---- no-show evidence ---- additive; noshow also reuses request, run, rider, at
+  accept: 'key',
+  /** Block number a claim was evaluated at. */
+  block: 'u64',
 } as const satisfies Record<string, AttrType>;
 
 export type AttrName = keyof typeof ATTR;
@@ -57,6 +61,7 @@ export const ENTITY_ATTRS: Readonly<Record<EntityType, readonly AttrName[]>> = {
   complaint: ['rider', 'request', 'reason', 'at'],
   decline: ['request', 'run', 'rider'],
   ping: ['run', 'rider', 'gh7', 'zone5', 'at', 'seq'],
+  noshow: ['request', 'run', 'rider', 'accept', 'block', 'at'],
 };
 
 export const ENTITY_TYPES: readonly EntityType[] = [
@@ -70,6 +75,7 @@ export const ENTITY_TYPES: readonly EntityType[] = [
   'complaint',
   'decline',
   'ping',
+  'noshow',
 ];
 
 export function isEntityType(v: unknown): v is EntityType {
@@ -92,6 +98,13 @@ export const u64V = (value: number | bigint): Extract<AttrValue, { type: 'u64' }
   value: BigInt(value),
 });
 export const i32V = (value: number): Extract<AttrValue, { type: 'i32' }> => ({ type: 'i32', value });
+/** Untyped-name constructors for companion protocols (lowercased like everything in core). */
+export const addrV = (value: string): Extract<AttrValue, { type: 'addr' }> => ({ type: 'addr', value: value.toLowerCase() as Hex });
+export const keyV = (value: string): Extract<AttrValue, { type: 'key' }> => ({ type: 'key', value: value.toLowerCase() as Hex });
+export const bytes32V = (value: string): Extract<AttrValue, { type: 'bytes32' }> => ({
+  type: 'bytes32',
+  value: value.toLowerCase() as Hex,
+});
 
 /** Addresses and keys are lowercased everywhere in core so comparisons are plain `===`. */
 export function lower<T extends Hex>(v: T): T {

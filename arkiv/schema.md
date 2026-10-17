@@ -28,6 +28,7 @@ Attribute types are Arkiv attribute types (`str`, `i32`, `u64`, `addr`, `key`, `
 | `receipt` | RO | 1 y; the owner (runner) can renew +1 y | **resident** | **runner** (transferred) | The point of the project: the resident authors it (`$creator`, unforgeable, immutable) but the **runner owns it**, so reputation is a portable asset the runner holds and renews, and no platform database owns it. |
 | `complaint` | RO | 180 d | resident | resident | The accused runner cannot delete or edit it (not the owner). The resident keeps ownership on purpose. |
 | `attestation` | RO | 180 d | verifier | verifier | Contains no ID data, only "this wallet was checked". Verifier revokes by deleting (RO still allows delete). |
+| `noshow` | RO | 180 d | **anyone** (normally an Arkiv Triggers worker running the `bhaiyaplease.noshow` attester, `docs/TRIGGERS.md` §4) | writer | Evidence "at block B the runner had accepted, the ETA had passed and nothing was delivered". The writer is **not** trusted: every viewer re-reads the chain at B (`atBlock`) before counting it (section 6). RO so the claimed block and keys cannot be re-pointed. |
 
 ## 3. Attributes (besides `project`, `type`)
 
@@ -36,7 +37,7 @@ Attribute types are Arkiv attribute types (`str`, `i32`, `u64`, `addr`, `key`, `
 | `subject` | addr | attestation | Wallet being attested |
 | `level` | str | attestation | `id_checked` / `resident` / `successor` |
 | `prev` | addr | attestation (only `successor`, required iff successor) | Old wallet whose receipts carry over (key rotation) |
-| `at` | u64 | attestation, receipt, complaint | Writer-declared unix time. Reputation windows use `$createdAt`, not this; `at` exists because `$createdAt` is not filterable, and the complaint query filters `at >= since` |
+| `at` | u64 | attestation, receipt, complaint, noshow | Writer-declared unix time (noshow: the time of `block`). Reputation windows use `$createdAt`, not this; `at` exists because `$createdAt` is not filterable, and the complaint query filters `at >= since` |
 | `zone` | str (geohash-6) | shop, delivery, receipt | Shop location / delivery zone |
 | `zone5` | str (geohash-5) | shop | Route/catchment area; must equal `zone[0..5]` or the shop is dropped |
 | `category` | str | shop | `grocery` `bakery` `pharmacy_otc` `stationery` `household` |
@@ -47,16 +48,18 @@ Attribute types are Arkiv attribute types (`str`, `i32`, `u64`, `addr`, `key`, `
 | `capacity_left` | i32 (0-3) | run | Decremented by `accept` in the same batch |
 | `tier` | i32 (0-2) | run | **Self-declared** tier at announce time. Display hint only; limits always use the viewer-computed tier |
 | `at_gate` | u64 (optional) | run | Unix seconds the runner last signalled "at the gate" (`markAtGate`, a partial patch). Absent until first set; runs without it still decode |
-| `run` | key | request, accept, decline | Run this request/accept/decline refers to |
+| `run` | key | request, accept, decline, noshow | Run this request/accept/decline/noshow refers to |
 | `shop` | key | request | Shop to buy from |
 | `max_price` | i32 (rupees, 0-100000) | request | Price ceiling; checked against the runner's computed tier cap |
 | `tip` | i32 (rupees) | request | Tip offered |
 | `code_commit` | bytes32 | request | `keccak256(utf8(code) ‖ salt(16 B) ‖ requestKey(32 B))` |
-| `request` | key | accept, decline, delivery, complaint | Request referred to |
-| `rider` | addr | accept, decline, delivery, receipt, complaint | The runner |
+| `request` | key | accept, decline, delivery, complaint, noshow | Request referred to |
+| `rider` | addr | accept, decline, delivery, receipt, complaint, noshow | The runner |
 | `resident` | addr | delivery | Request creator (informational; trust uses `$creator`) |
 | `delivery` | key | receipt | Delivery being credited |
 | `reason` | str | complaint | `no_show` / `wrong_item` / `rude` |
+| `accept` | key | noshow | The runner's Accept the claim relies on (live at `block`) |
+| `block` | u64 | noshow | Block number the claim was evaluated at; verifiers re-read the chain at exactly this block |
 
 Per entity (exactly `ENTITY_ATTRS` in code):
 
@@ -70,6 +73,7 @@ decline:     request run rider
 delivery:    request rider resident zone
 receipt:     rider delivery zone at
 complaint:   rider request reason at
+noshow:      request run rider accept block at
 ```
 
 ## 4. Payloads (JSON)
@@ -85,6 +89,7 @@ complaint:   rider request reason at
 | receipt | `{ "tags": ReceiptTag[0..5] }` | `exact_item` `on_time` `polite` `good_price` `careful_packing`, no duplicates |
 | complaint | `{}` | |
 | attestation | `{}` | |
+| noshow | `{}` | |
 
 Payloads with no schema accept any JSON object and ignore its contents.
 
@@ -106,7 +111,10 @@ Built with the typed builder `publicClient.select('*').where([...]).limit(200)` 
 | `getReceiptsFor(rider)` (reputation core) | `… type = str('receipt') AND $owner = addr(<rider>)`, then per receipt a read of its Delivery and that Delivery's Request |
 | `issueReceipt` duplicate check | `… type = str('receipt') AND delivery = key(0x…) AND $creator = addr(<resident>)` |
 | `transferAllReceipts()` | `… type = str('receipt') AND $owner = addr(<self>)` |
-| `getComplaintsAgainst(rider, since?)` | `… type = str('complaint') AND rider = addr(0x…) [AND at >= u64(since)]`, then a read of each referenced Request and `… type = str('delivery') AND request = key(0x…) AND $creator = addr(<rider>)` (evidence the rider served it) |
+| `getComplaintsAgainst(rider, since?)` | `… type = str('complaint') AND rider = addr(0x…) [AND at >= u64(since)]`, then a read of each referenced Request and, as evidence: for `no_show`, `… type = str('noshow') AND request = key(0x…) AND rider = addr(<rider>)` verified as below; otherwise `… type = str('delivery') AND request = key(0x…) AND $creator = addr(<rider>)` (the rider served it) |
+| `getNoShowsFor(rider)`, profile `noShows` | `… type = str('noshow') AND rider = addr(0x…)`, then each verified (next row) |
+| `getNoShowForRequest(requestKey)`, `fileComplaint` (`no_show`) evidence check | `… type = str('noshow') AND request = key(0x…) [AND rider = addr(<rider>)]`, then each verified |
+| `verifyNoShow(noshow)`, `buildNoShowEvidence` | at `noshow.block` (`.atBlock(B)`): `$key` reads of the Request, Run and Accept, `… type = str('delivery') AND request = key(0x…)`; then at head `… type = str('delivery') AND request = key(0x…) AND $creator = addr(<rider>)` (late handoff) |
 | `fileComplaint` duplicate check | `… type = str('complaint') AND request = key(0x…) AND $creator = addr(<resident>)` |
 | `getAttestationsFor(subject)` | `… type = str('attestation') AND subject = addr(0x…)` |
 | `getMyIssuedAttestations()` | `… type = str('attestation') AND $creator = addr(<verifier>)` |
@@ -130,15 +138,16 @@ Anyone can create any entity with `project=bhaiyaplease`. Only `$creator` (immut
 | Receipt | delivery exists; reveal verifies; `delivery.rider == receipt.rider`; **`request.$creator == receipt.$creator`**; `receipt.$creator != receipt.rider`; receipt, delivery and request were all created **readonly** (`not_readonly` otherwise); the receipt is owned by the profile's wallet (`$owner` query) | Receipts for deliveries the issuer was not party to; self-issued receipts; a mutable receipt the runner (its owner) could re-point, or a mutable request whose commit could be swapped |
 | Duplicates | Only the **earliest** valid receipt per request counts; later ones are marked `duplicate` and shown greyed | A resident minting many receipts for one handoff |
 | Self-dealing | `receipt.$creator == rider` is invalid (`self_dealing`) | Runner issuing receipts to themselves |
-| Complaint | `complaint.$creator == request.$creator`, `complaint.$creator != rider`, **and the rider provably served that request**: a readonly Delivery for it with `$creator == rider == complaint.rider` whose reveal hashes to the commit; one per request | Drive-by complaints: without the delivery check any wallet that posted *any* request could pin complaints on *any* runner and push a Trusted runner down with three cheap writes |
+| Complaint | `complaint.$creator == request.$creator`, `complaint.$creator != rider`, **and evidence**: for reason `no_show`, a verified `noshow` for that request naming `complaint.rider` (row above); for any other reason, the rider provably served that request: a readonly Delivery for it with `$creator == rider == complaint.rider` whose reveal hashes to the commit. One per request. `fileComplaint` applies the same check before spending gas (`INVALID_INPUT` otherwise) | Drive-by complaints: without evidence any wallet that posted *any* request could pin complaints on *any* runner and push a Trusted runner down with three cheap writes |
+| NoShow | any `$creator`. Valid only if, **re-read at `noshow.block`**: the request exists and `request.run == noshow.run`; the run is trusted (`$owner == $creator`); `noshow.accept` is the runner's own valid Accept for that request and run (Accept rule above) with `accept.rider == noshow.rider == run.$creator`; the block's time is `>= run.eta`; no trusted Delivery (Delivery rule above) exists. Then, at head, the rider has not recorded a valid Delivery for the request since (`delivered_later`: a late handoff cancels the no-show). One per request (earliest valid wins, later copies `duplicate`) | A worker (or anyone) inventing no-shows: the claim is a pointer to a block, and only the chain's state at that block decides |
 | Attestation | counted as "verified" only if `$creator` is in the **viewer's** trusted-verifier list (`EXPO_PUBLIC_TRUSTED_VERIFIERS`), the attestation is **readonly**, `attestation.$creator != subject`, not expired | Anyone minting "ID-checked"; a mutable attestation whose subject could be patched |
 | Shop | passes zod; `zone5 == zone[0..5]` | Malformed junk |
 
-**Reputation** (computed in `services/reputation.ts`, no writes): valid receipts, distinct `$creator` count, last-30-day window by `$createdAt`, complaints separately. Tiers: New (₹200 cap, 1 request/run); Verified = a trusted live attestation (₹500, 2/run); Trusted = Verified and >= 25 valid receipts from >= 15 distinct residents and <= 2 complaints in 30 d (₹1000, 3/run). A trusted `successor` attestation carries the `prev` wallet's receipts over.
+**Reputation** (computed in `services/reputation.ts`, no writes): valid receipts, distinct `$creator` count, last-30-day window by `$createdAt`, complaints separately, verified no-shows (`noShows`, `noShows30d` by `$createdAt`; shown, not a tier input beyond the `no_show` complaints they back). Tiers: New (₹200 cap, 1 request/run); Verified = a trusted live attestation (₹500, 2/run); Trusted = Verified and >= 25 valid receipts from >= 15 distinct residents and <= 2 complaints in 30 d (₹1000, 3/run). A trusted `successor` attestation carries the `prev` wallet's receipts over.
 
 **Known limits (stated, not hidden):**
 - A determined attacker with N wallets can farm receipts from N fake "residents" by running requests against themselves. Mitigation: the Trusted tier requires a verifier attestation, which cannot be farmed; New-tier caps are small.
-- A complaint needs a recorded Delivery as evidence. A no-show (accepted but never delivered) cannot be proven after the run expires, because the Accept dies with the run, so it does not count; the app only offers complaints after a delivery.
+- A complaint needs evidence. Wrong-item / rude complaints need a recorded Delivery. A no-show (accepted but never delivered) used to be unprovable after the run expired, because the Accept dies with the run. It is now provable through **Arkiv Triggers** (`docs/TRIGGERS.md`): when the resident's request is accepted, the app subscribes an `attest` trigger on the Accept `expiring` (unless a Delivery exists); a worker then writes a `noshow` naming the block at which the facts held, and every viewer re-verifies it with an `atBlock` read. Residual limits: verification depends on the node serving historical state for that block (if it cannot, the noshow is reported `history_unavailable` and does not count); a late handoff before the run expires cancels it (`delivered_later`); the resident must file the `no_show` complaint while the Request is still live (run expiry + 1 h; filing extends it to 180 d); no worker running means no evidence (anyone may write it, though, including the resident).
 - Receipts are transferable by their owner (that is what makes key rotation work), so a runner could hand its receipts to another wallet; the profile counts whatever receipts a wallet owns. Reputation is portable by design, and therefore also sellable.
 - `extendReceipt` (core only) renews the receipt, but the Request it is verified against is owned by the resident and expires after 1 y, after which the renewed receipt no longer verifies. Not claimed in the UI.
 - In demo mode the app also trusts the verifier wallet created in the same browser, so a judge can try the verifier flow; other viewers do not trust it.
@@ -175,6 +184,7 @@ One shared `watchEntityEvents` poller per client (interval 2000 ms). Events carr
 | Partial `patchEntity` | `run.at_gate` (`markAtGate`) | Runner signals "at the gate"; only `at_gate` changes, `capacity_left` and expiry stay; allowed after ETA until the run expires; repeat calls update the time | core only |
 | `extendEntity` by owner | receipt | Runner renews receipts for another year | core only |
 | `atBlock` historical query | `getProfileAt` | "Tier when you accepted" dispute view | core only (cut-able) |
+| `atBlock` re-verification of a third-party claim | `noshow` (`verifyNoShow`, `getNoShowsFor`, `buildNoShowEvidence`) | "Runner didn't show up" complaint only when a verified no-show exists; profiles list no-shows | core (app wiring in progress) |
 | Bulk `ownershipChanges` | `transferAllReceipts` | Move all receipts to a new wallet | core only (cut-able) |
 | `successor` attestation | attestation | Old wallet's receipts carry over | core only (cut-able) |
 
@@ -238,3 +248,14 @@ Trust: a ping counts only if `ping.$creator == ping.rider == run.$creator` and t
 What the user sees: residents see each runner heading to their gate as a pulsing, tier-coloured marker with "N min away · Ns ago" and a short breadcrumb trail (the ≤ 6 still-living pings); runners see "Sharing live location · deletes itself in 2 min" with an off switch. Demo data: the mock and `scripts/seed/heartbeat.ts` (≤ 6 pings per announced run per invocation) move runners along a deterministic synthetic route in the demo zones (Whitefield, Bengaluru); no real person's location is ever written.
 
 Privacy limits (stated): a 153 m cell still reveals roughly where a runner is while sharing; that is the point of the feature, it is opt-in per run, and it disappears after 2 minutes. Pings are public like every Arkiv entity.
+
+## 12. `noshow`: no-show evidence via Arkiv Triggers
+
+Contract: `docs/TRIGGERS.md` §4. Code: codec `encode.noshow` / `decode.noshow` (`packages/core/src/codec/entities.ts`), rules `packages/core/src/services/noshow.ts`.
+
+- **Writer:** the `bhaiyaplease.noshow` attester calls `buildNoShowEvidence(port, project, requestKey)` (exported from `@bhaiya-please/core`, `/mock` and `/port`). It reads through `port.at(port.blockNumber())`, so the facts it writes are exactly what a verifier will re-read, and returns `{ spec, block }` (a readonly, 180 d `CreateSpec`) or `null`. The worker writes `spec` with its own wallet.
+- **Verifier:** `verifyNoShow(noshow)` on the client (or the pure `verifyNoShowEvidence(port, project, noshow)`), returning `{ valid: true }` or `{ valid: false, reason }` with `reason` in `request_missing`, `run_missing`, `accept_missing`, `rider_mismatch`, `before_eta`, `delivered`, `delivered_later`, `duplicate`, `history_unavailable`.
+- **Reads:** `getNoShowsFor(rider)` (all, each with `valid`), `getNoShowForRequest(requestKey)` (the valid one, else the newest invalid one, else null), `Profile.noShows` / `noShows30d` (valid only).
+- **Companion access:** `BhaiyaPlease.arkivPort()` returns the underlying `ArkivPort` (writes go through `port.write()`, sharing the wallet's queue). `@bhaiya-please/core/port` exports `createArkivAdapter`, the port types and the attribute helpers (`strV u64V i32V addrV keyV bytes32V attr`); `@bhaiya-please/core/mock` exports `createMockPort({ address, shareWith?, store? })` and every mock client has `dev.port(address)` (another wallet on the same in-memory chain).
+- **Mock history:** the mock chain keeps superseded entity versions (block = `floor(unix / 2)`), so `port.at(block)` returns the state after that block's last transaction (expiry evaluated at the block's time) for the last 200 days (at most 3000 superseded versions, pings excluded). `getProfileAt` therefore works on the mock too. A future block throws `INVALID_INPUT`.
+
