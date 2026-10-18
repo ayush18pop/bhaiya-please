@@ -1,4 +1,4 @@
-# Arkiv Triggers: design spec (build contract)
+# Arkiv Triggers: design spec
 
 **Arkiv Triggers is "Zapier for expiring data".** A trigger is an Arkiv entity that says "when an entity matching this query is created / patched / about to expire / expired / deleted, unless this other query has results, do this action". A worker network watches those queries, executes the actions, and writes a signed **firing receipt** back to Arkiv.
 
@@ -6,7 +6,7 @@ It is project-agnostic: any Arkiv app can use it. Bhaiya Please is the first cli
 - **push notifications**, replacing phones polling the chain;
 - **trustless no-show evidence**, closing the "a no-show can't be proven after the run expires" limit in `arkiv/schema.md`.
 
-This file is the contract three workstreams build against. If something here is wrong, fix it here first.
+This file is the protocol's contract: the codec, the worker and the app all implement it.
 
 ## 1. Entities (project tag `arkivtriggers`)
 

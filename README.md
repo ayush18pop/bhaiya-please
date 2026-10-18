@@ -61,7 +61,7 @@ India's delivery work runs on gig workers, and their track record belongs to the
 |---|---|
 | **Gig workforce** | **77 lakh** gig workers in 2020-21, projected to reach **2.35 crore by 2029-30** (NITI Aayog, *India's Booming Gig and Platform Economy*, 2022). |
 | **Recognition is only starting** | Budget 2025-26: about **1 crore** platform workers to get identity cards, registration on e-Shram and health cover under PM-JAY. The Code on Social Security, 2020 lets the Centre levy **1–2% of aggregator turnover** for their welfare. |
-| **Ten-minute delivery** | Quick commerce gross order value: **₹30,000 crore (FY24) → ₹64,000 crore (FY25)**, projected to pass **₹2 lakh crore by FY28** (CareEdge). Every order pays a platform's fees, including the small ones. |
+| **Ten-minute delivery** | Quick commerce gross order value: **₹30,000 crore (FY24) → ₹64,000 crore (FY25)**, projected to pass **₹2 lakh crore by FY28** (CareEdge). Every order pays a platform's fees, including the small ones: an order under ₹99 still pays a **₹30 delivery fee** on Zepto, even after its November 2025 pricing overhaul (Business Today). |
 | **The kirana still wins** | Kirana stores hold about **91% of India's grocery retail** (Redseer, CY2025): the shop on the rider's route is usually a kirana, not a dark store. |
 | **Reputation is locked in** | A rider's ratings live inside each app, can't be taken elsewhere, and disappear when an account is deactivated. Rajasthan (2023) and Karnataka (2025) passed gig-worker laws; Karnataka's requires written reasons before deactivation and has been challenged in court by platforms. Fairwork India 2024 scored 11 platforms on five fairness principles (pay, conditions, contracts, management, representation): three got **0 out of 10**. |
 
@@ -70,9 +70,11 @@ India's delivery work runs on gig workers, and their track record belongs to the
 - **The resident** gets one litre of milk or a strip of medicine from the kirana on the route without a delivery fee, and pays by UPI at the gate.
 - **The kirana** gets an order without paying a commission to anyone.
 
+**It works today:** the app is live on the Arkiv Tiramisu testnet, and a real errand ran end to end, from the run and the request through the accept, "at the gate" and the QR handoff to a receipt created and transferred to the rider in one transaction. Push alerts arrived within seconds through Arkiv Triggers, and a no-show was attested on chain. Every transaction is linked under [On-chain evidence](#on-chain-evidence).
+
 The app is built for how this works here: residents organised by gated society, the "bhaiya" at the gate, UPI off-chain, English, Hindi and Kannada, and Android and web from one codebase.
 
-<sub>Sources: [NITI Aayog projection](https://indbiz.gov.in/indias-gig-economy-to-have-23-5-million-workers-by-2029-30-niti-aayog/) · [Budget 2025 measures (Ministry of Labour via All India Radio)](https://www.newsonair.gov.in/labour-employment-ministry-urges-platform-workers-to-register-themselves-on-e-shram-portal-to-access-benefits-of-ab-pmjay) · [Code on Social Security aggregator levy](https://www.mondaq.com/india/constitutional-administrative-law/1759312/social-security-for-gig-workers-in-india-do-central-and-state-laws-signal-higher-costs-for-online-platforms) · [Quick commerce GOV (CareEdge)](https://www.angelone.in/news/market-updates/quick-commerce-boom-orders-hit-64-000-crore-in-fy25-projecting-2-lakh-crore-by-fy28) · [Kirana share (Redseer)](https://redseer.com/reports/why-indias-mass-grocery-still-leans-on-kirana-stores/) · [Karnataka gig-worker law](https://www.business-humanrights.org/en/latest-news/india-karnatakas-gig-worker-law-introduces-algorithmic-transparency-but-enforcement-and-appeal-rights-remain-weak/) · [Deactivation litigation](https://www.livelaw.in/lawschool/articles/algorithmic-deactivation-article14-karnataka-gig-worker-litigation-542390) · [Fairwork India Ratings 2024](https://ruralindiaonline.org/en/library/resource/fairwork-india-ratings-2024-labour-standards-in-the-platform-economy/)</sub>
+<sub>Sources: [NITI Aayog projection](https://indbiz.gov.in/indias-gig-economy-to-have-23-5-million-workers-by-2029-30-niti-aayog/) · [Budget 2025 measures (Ministry of Labour via All India Radio)](https://www.newsonair.gov.in/labour-employment-ministry-urges-platform-workers-to-register-themselves-on-e-shram-portal-to-access-benefits-of-ab-pmjay) · [Code on Social Security aggregator levy](https://www.mondaq.com/india/constitutional-administrative-law/1759312/social-security-for-gig-workers-in-india-do-central-and-state-laws-signal-higher-costs-for-online-platforms) · [Quick commerce GOV (CareEdge)](https://www.angelone.in/news/market-updates/quick-commerce-boom-orders-hit-64-000-crore-in-fy25-projecting-2-lakh-crore-by-fy28) · [Zepto delivery fee (Business Today, Nov 2025)](https://www.businesstoday.in/amp/tech-today/news/story/zepto-halves-free-delivery-threshold-and-scraps-surge-charges-in-major-pricing-overhaul-500675-2025-11-03) · [Kirana share (Redseer)](https://redseer.com/reports/why-indias-mass-grocery-still-leans-on-kirana-stores/) · [Karnataka gig-worker law](https://www.business-humanrights.org/en/latest-news/india-karnatakas-gig-worker-law-introduces-algorithmic-transparency-but-enforcement-and-appeal-rights-remain-weak/) · [Deactivation litigation](https://www.livelaw.in/lawschool/articles/algorithmic-deactivation-article14-karnataka-gig-worker-litigation-542390) · [Fairwork India Ratings 2024](https://ruralindiaonline.org/en/library/resource/fairwork-india-ratings-2024-labour-standards-in-the-platform-economy/)</sub>
 
 ## Why Arkiv
 
@@ -148,7 +150,8 @@ The live app on Arkiv Tiramisu (Lotus Heights, a synthetic society).
 
 The 3-minute demo film shows one real errand end to end on the live app: a rider goes live, a resident asks for milk, accept, gate, handoff, receipt, then the receipt entity on the Arkiv explorer and the Arkiv Triggers alerts.
 
-<!-- TODO: paste video link -->
+▶ **Watch it:** https://www.youtube.com/watch?v=1avDROj0FVM
+
 Every transaction shown in the film is listed below with its explorer link.
 
 ## On-chain evidence

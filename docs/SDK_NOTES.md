@@ -133,8 +133,7 @@ Evidence: `entity/operations.ts` documents the engine as "an ordered, atomic bat
 effects"; the SDK always emits creates first, ownership changes last; `predictEntityKey` docs explicitly describe a later op
 referencing a key minted earlier in the same tx (the shown example uses it as a `key` attribute, not as an ownership target).
 Owner at transfer time is the creator, so the owner check passes; `readonly` entities may still be transferred (flags doc).
-Remaining 15%: engine is a closed node, no test in the SDK does exactly create+transfer; verify on Tiramisu first thing.
-Fallback if it reverts: two txs (createEntity, then changeOwnership), losing atomicity.
+Verified on Tiramisu: create + transfer of the same new key in one batch passes (`arkiv/friction.md` S2). Core keeps a two-transaction fallback as defence in depth; it never triggered.
 **(b) watchEntityEvents filter:** None server-side. Only `fromBlock` and `pollingInterval`. Internally viem `watchEvent` with
 `address: 0x4400...0044` + event ABI. Filter client-side on `e.owner` / attributes after fetch. Works over an HTTP poller or a WebSocket transport (`webSocket(url)`); core uses the WebSocket and falls back to polling.
 **(c) numeric reads:** typed per declared type: i32 number, u64/u256 bigint, dec string. Never hex to the caller.
@@ -194,7 +193,9 @@ Needs `globalThis.crypto.getRandomValues` (fine in browsers). Vite may need `tar
 12. `watchEntityEvents` events carry no attributes/payload; no filter; extender address unavailable in `ExpiryExtended`.
 13. Package ships `bun` export condition first (`"bun": "./src/index.ts"`); fine for Vite/Node, but worth noting for Bun users.
 
-## Open questions (need Tiramisu + funded key)
+## Questions we tested on chain
+All answered by `pnpm spike` on 16 Oct (29/29 PASS): results in `arkiv/friction.md` section B and `arkiv/schema.md` section 10.
+
 1. Does create + changeOwnership of the same new key in ONE batch succeed? (Primary risk for Receipt flow.)
 2. Does the node reject `ne()` / `!=` with a clear error, and which `QueryError.kind`?
 3. Exact access-key format (URL suffix vs header) and rate limits without a key; can browsers hit the RPC (CORS)?
@@ -213,5 +214,4 @@ Needs `globalThis.crypto.getRandomValues` (fine in browsers). Vite may need `tar
   (missing key → `NoEntityFoundError`), and `atBlock` historical queries. Owner/creator come back EIP-55; core lowercases.
 - Tiramisu carries steady third-party traffic (an indexer load generator creates entities every block), so the shared
   watcher resolves foreign `EntityCreated` keys continuously; it caps at 10 `get`/s. If backlog grows, batch-resolve.
-- All write-side questions above remain open: `scripts/spike` (`pnpm --filter @bhaiya-please/spike spike`) answers them
-  once `.env` has a funded `SEED_PRIVATE_KEY` (+ optional `VERIFIER_PRIVATE_KEY` for the two-wallet checks).
+- The write-side questions above were then answered by `scripts/spike` (`pnpm spike`) with funded keys.
