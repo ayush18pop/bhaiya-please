@@ -5,7 +5,7 @@ import { MockChain } from '../src/mock/chain';
 import type { KVStorage } from '../src/mock/chain';
 import { createMockBhaiyaPlease } from '../src/mock';
 import { BhaiyaPleaseError, PROJECT_TAG } from '../src/types';
-import type { BhaiyaPleaseErrorCode, ChangeEvent } from '../src/types';
+import type { Address, BhaiyaPleaseErrorCode, ChangeEvent } from '../src/types';
 import { addr, createSpec, HOME, makeWorld, NORTH } from './helpers';
 
 const alice = addr('alice');

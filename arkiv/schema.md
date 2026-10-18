@@ -281,7 +281,7 @@ Core also exports a shared `watchEntityEvents` watcher (`subscribe()`, [`arkiv/w
 | `successor` attestation | attestation | Shown as "Moved from an older account" when present | shown; issuing is core only |
 | `extendEntity` by the owner | receipt | The runner renews receipts for another year | core only |
 | `atBlock` historical profile | `getProfileAt` | "Tier when you accepted" dispute view | core only |
-| `watchEntityEvents` over a WebSocket transport | all | Screens refresh within about a second when the rider or resident they are looking at acts (section 7) | shown |
+| `watchEntityEvents` over a WebSocket transport | all | Screens refresh within about a second when the rider or resident they are looking at acts (section 7) | yes (app-wide) |
 
 "Core only" features are implemented and tested in `packages/core`, but are not claimed as user-visible.
 
