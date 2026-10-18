@@ -40,17 +40,39 @@ Everything runs on **Arkiv Tiramisu testnet only**. All wallets are test wallets
 
 ## Contents
 
-1. [Why Arkiv](#why-arkiv)
-2. [How it works](#how-it-works)
-3. [Features](#features)
-4. [Screenshots](#screenshots)
-5. [Demo video](#demo-video)
-6. [On-chain evidence](#on-chain-evidence): [contracts](#contracts) · [wallets](#wallets) · [demo transactions](#demo-transactions) · [Triggers](#arkiv-triggers-on-the-live-app) · [how to verify](#how-to-verify)
-7. [Architecture](#architecture) and [repository layout](#repository-layout)
-8. [Quick start](#quick-start)
-9. [Deployment](#deployment)
-10. [Privacy and scope](#privacy-and-scope)
-11. [Roadmap](#roadmap) · [Team](#team) · [Licence and credits](#licence-and-credits)
+1. [Why India](#why-india)
+2. [Why Arkiv](#why-arkiv)
+3. [How it works](#how-it-works)
+4. [Features](#features)
+5. [Screenshots](#screenshots)
+6. [Demo video](#demo-video)
+7. [On-chain evidence](#on-chain-evidence): [contracts](#contracts) · [wallets](#wallets) · [demo transactions](#demo-transactions) · [Triggers](#arkiv-triggers-on-the-live-app) · [how to verify](#how-to-verify)
+8. [Architecture](#architecture) and [repository layout](#repository-layout)
+9. [Quick start](#quick-start)
+10. [Deployment](#deployment)
+11. [Privacy and scope](#privacy-and-scope)
+12. [Roadmap](#roadmap) · [Team](#team) · [Licence and credits](#licence-and-credits)
+
+## Why India
+
+India's delivery work runs on gig workers, and their track record belongs to the platform they work for. Bhaiya Please is built for the two people who meet at the society gate every evening.
+
+| | |
+|---|---|
+| **Gig workforce** | **77 lakh** gig workers in 2020-21, projected to reach **2.35 crore by 2029-30** (NITI Aayog, *India's Booming Gig and Platform Economy*, 2022). |
+| **Recognition is only starting** | Budget 2025-26: about **1 crore** platform workers to get identity cards, registration on e-Shram and health cover under PM-JAY. The Code on Social Security, 2020 lets the Centre levy **1–2% of aggregator turnover** for their welfare. |
+| **Ten-minute delivery** | Quick commerce gross order value: **₹30,000 crore (FY24) → ₹64,000 crore (FY25)**, projected to pass **₹2 lakh crore by FY28** (CareEdge). Every order pays a platform's fees, including the small ones. |
+| **The kirana still wins** | Kirana stores hold about **91% of India's grocery retail** (Redseer, CY2025): the shop on the rider's route is usually a kirana, not a dark store. |
+| **Reputation is locked in** | A rider's ratings live inside each app, can't be taken elsewhere, and disappear when an account is deactivated. Rajasthan (2023) and Karnataka (2025) passed gig-worker laws; Karnataka's requires written reasons before deactivation and has been challenged in court by platforms. Fairwork India 2024 scored 11 platforms on five fairness principles (pay, conditions, contracts, management, representation): three got **0 out of 10**. |
+
+**What changes for them:**
+- **The rider** (delivery partner, office-goer, the neighbour's son) is already heading to the building. One more stop earns a tip on a trip they were making anyway, and every handoff becomes a **receipt they own on chain**. No platform can delete it, and it moves with them to a new phone or wallet, readable by any app built on Arkiv.
+- **The resident** gets one litre of milk or a strip of medicine from the kirana on the route without a delivery fee, and pays by UPI at the gate.
+- **The kirana** gets an order without paying a commission to anyone.
+
+The app is built for how this works here: residents organised by gated society, the "bhaiya" at the gate, UPI off-chain, English, Hindi and Kannada, and Android and web from one codebase.
+
+<sub>Sources: [NITI Aayog projection](https://indbiz.gov.in/indias-gig-economy-to-have-23-5-million-workers-by-2029-30-niti-aayog/) · [Budget 2025 measures (Ministry of Labour via All India Radio)](https://www.newsonair.gov.in/labour-employment-ministry-urges-platform-workers-to-register-themselves-on-e-shram-portal-to-access-benefits-of-ab-pmjay) · [Code on Social Security aggregator levy](https://www.mondaq.com/india/constitutional-administrative-law/1759312/social-security-for-gig-workers-in-india-do-central-and-state-laws-signal-higher-costs-for-online-platforms) · [Quick commerce GOV (CareEdge)](https://www.angelone.in/news/market-updates/quick-commerce-boom-orders-hit-64-000-crore-in-fy25-projecting-2-lakh-crore-by-fy28) · [Kirana share (Redseer)](https://redseer.com/reports/why-indias-mass-grocery-still-leans-on-kirana-stores/) · [Karnataka gig-worker law](https://www.business-humanrights.org/en/latest-news/india-karnatakas-gig-worker-law-introduces-algorithmic-transparency-but-enforcement-and-appeal-rights-remain-weak/) · [Deactivation litigation](https://www.livelaw.in/lawschool/articles/algorithmic-deactivation-article14-karnataka-gig-worker-litigation-542390) · [Fairwork India Ratings 2024](https://ruralindiaonline.org/en/library/resource/fairwork-india-ratings-2024-labour-standards-in-the-platform-economy/)</sub>
 
 ## Why Arkiv
 
