@@ -102,7 +102,7 @@ Off-chain on purpose: names, phone numbers, flat numbers, ID documents, exact GP
 | **Arkiv Triggers** | In-app and push alerts ("accepted", "at the gate", "someone is heading here") driven by on-chain trigger entities, each firing recorded as a signed receipt entity. Provable no-show evidence is designed in (see limits) |
 | **Everyone** | English, हिन्दी, ಕನ್ನಡ · Sunlight mode for riders · every save shows Saving / Saved / Couldn't save · a verified-record view per receipt with an explorer link |
 
-The visual language is "Auto Meter Brutalism" (meter-digit ETAs, number-plate levels, mela-light alerts, rubber-stamped receipts, a dark brand map). Full screen spec: [`docs/UI_SCREENS.md`](docs/UI_SCREENS.md).
+The visual language is "Auto Meter Brutalism" (meter-digit ETAs, number-plate levels, mela-light alerts, rubber-stamped receipts, a dark brand map).
 
 ## Screenshots
 
@@ -287,7 +287,7 @@ packages/triggers-worker/  Node worker: HTTP channel API, Web Push / Expo push /
 scripts/seed/           seed.ts, heartbeat.ts, fund.ts, live-check.ts
 scripts/spike/          chain spike: PASS/FAIL for each risky SDK behaviour
 arkiv/                  schema.md and friction.md (hackathon deliverables)
-docs/                   TESTING, DEPLOY, TRIGGERS, TRIGGERS_LIVE_TEST, UI_SCREENS, SDK_NOTES
+docs/                   TESTING, DEPLOY, TRIGGERS, TRIGGERS_LIVE_TEST, SDK_NOTES
 .github/workflows/      ci.yml (tests + typecheck), heartbeat.yml
 ```
 

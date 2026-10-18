@@ -122,7 +122,7 @@ In **Expo Go** the map is a schematic drawing (MapLibre needs native code). Ever
 
 ## 5. What to look at (design checklist)
 
-The design source is `BhaiyaPlease-DesignSystem` (artboards per screen). The screen list and states are in [`docs/UI_SCREENS.md`](UI_SCREENS.md).
+The visual language is "Auto Meter Brutalism". Check these while clicking through the app:
 
 - **Rules:** one primary (yellow) action per screen; runner buttons are 64 px; glass only over the map or camera.
 - **Every save shows its state on the button:** Saving ▮▮▮ → Saved ✓ → Couldn't save · Retry plus the reason.
