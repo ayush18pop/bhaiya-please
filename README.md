@@ -10,6 +10,10 @@
   <img alt="Expo and React Native Web" src="https://img.shields.io/badge/Expo-React%20Native%20Web-F5F2EC?style=flat-square&labelColor=141412&logo=expo&logoColor=F5F2EC">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?style=flat-square&labelColor=141412&logo=typescript&logoColor=white">
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-FF6F61?style=flat-square&labelColor=141412"></a>
+  <br>
+  <a href="https://github.com/ayush18pop/bhaiya-please/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/ayush18pop/bhaiya-please/ci.yml?branch=main&style=flat-square&labelColor=141412&label=ci"></a>
+  <img alt="141 tests" src="https://img.shields.io/badge/tests-141%20passing-3DBE74?style=flat-square&labelColor=141412">
+  <a href="packages/triggers"><img alt="Arkiv Triggers" src="https://img.shields.io/badge/ships-Arkiv%20Triggers-FFB400?style=flat-square&labelColor=141412"></a>
 </p>
 
 <p align="center">
