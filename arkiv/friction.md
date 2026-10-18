@@ -1,15 +1,50 @@
 # Arkiv friction report
 
-SDK: `@arkiv-network/sdk` **0.8.1** with `viem` 2.57.7, Node 20, Tiramisu testnet (chain id 7738577). Surfaces used: `createPublicClient`/`createWalletClient`, `createEntity`, `patchEntity`, `extendEntity`, `changeOwnership`, `deleteEntity`, `executeBatch`, `predictEntityKeys`, `select()` query builder, `watchEntityEvents`, `getBlockTiming`, entity flags (`readonly`, `permissionlessExtension`), `ExpirationTime`, access key.
+What slowed us down while building **Bhaiya Please** and **Arkiv Triggers** on Arkiv, with the exact call, what we expected, what happened, how to reproduce it, and how we worked around it.
 
-How to read this file:
-- **Evidence** says how we know: `source` = read in the shipped package source and type-checked; `chain` = observed against Tiramisu; `build` = hit while building. Section B records the chain spike and seed (16 Oct), which upgraded findings 1, 8, 10 and 16 to `chain`.
-- **Time lost** values are **estimates** from memory of the build, not measured.
-- Full SDK notes: `docs/SDK_NOTES.md`. Probe/spike code: `scripts/spike/spike.ts`.
+| | |
+|---|---|
+| **SDK** | `@arkiv-network/sdk` **0.8.1** with `viem` 2.57.7, Node 20 |
+| **Network** | Tiramisu testnet, chain id `7738577` |
+| **Surfaces used** | `createPublicClient` / `createWalletClient`, `createEntity`, `patchEntity`, `extendEntity`, `changeOwnership`, `deleteEntity`, `executeBatch`, `predictEntityKeys`, the `select()` query builder (incl. `.atBlock`), `watchEntityEvents`, `getBlockTiming`, `getBlockNumber`, `getBalance`, entity flags (`readonly`, `permissionlessExtension`), `ExpirationTime`, access keys |
+| **Evidence tags** | `source` = read in the shipped package source and type-checked · `chain` = observed against Tiramisu · `build` = hit while building. Section B records the chain spike and seed (16 Oct 2026), which upgraded findings 1, 8, 10 and 16 to `chain`. |
+| **Time lost** | Estimates from memory of the build, not measured |
 
-## A. Findings so far
+Full SDK notes: [`docs/SDK_NOTES.md`](../docs/SDK_NOTES.md). Probe and spike code: [`scripts/spike/spike.ts`](../scripts/spike/spike.ts).
 
-### 1. `ne()` / `!=` is in the SDK but the network is documented to reject it
+## Summary
+
+| # | Finding | Kind | Evidence |
+|---|---|---|---|
+| [21](#21-the-read-quota-is-cost-based-and-undocumented-and-its-429-looks-like-a-rate-limit) | The read quota is cost-based and undocumented, and its 429 looks like a rate limit (536 → 10 calls/min after the fix) | **blocker** | chain |
+| [13](#13-watchentityevents-carries-no-attributes-no-type-no-filter-expiry-emits-nothing) | `watchEntityEvents` carries no attributes, type or filter, and expiry emits nothing | major | source, chain |
+| [22](#22-a-browser-app-pays-one-read-per-foreign-entity-to-use-watchentityevents-on-the-shared-testnet) | A browser pays one read per foreign entity to use `watchEntityEvents` | major | chain |
+| [3](#3-forgetting-salt-after-predictentitykeys-silently-yields-a-different-key) | Forgetting `salt` after `predictEntityKeys` silently yields a different key | major | source |
+| [8](#8-bare-numbers-are-i32-comparing-a-u64-attribute-with-a-bare-number-matches-nothing) | A bare number is `i32`, so a `u64` comparison silently matches nothing | major | chain |
+| [17](#17-access-key-in-the-url-leaks-through-error-messages-the-header-works-but-is-undocumented-in-the-sdk-path) | An access key in the URL leaks through error messages; the header works but is undocumented | major | chain |
+| [5](#5-createdat-and-expiresat-are-block-numbers-createdat-is-not-filterable) | `$createdAt` / `$expiresAt` are block numbers, and `$createdAt` is not filterable | moderate | source, chain |
+| [7](#7-extendentity-sets-not-adds-and-reverts-if-not-later) | `extendEntity` sets rather than adds, and reverts if not later | moderate | source |
+| [1](#1-ne---is-in-the-sdk-but-the-network-rejects-it) | `ne()` is in the SDK but the node rejects it | moderate | chain |
+| [4](#4-executebatch-result-echoes-input-for-everything-except-creates) | The `executeBatch` result echoes the input for everything except creates | moderate | source |
+| [18](#18-arkiv_query-reuses-json-rpc-code--32005-for-cursor-expired) | `arkiv_query` reuses code -32005 for "cursor expired" | moderate | source |
+| [10](#10-access-key-format-is-not-shown-and-the-key-is-public-in-a-browser) | The access key format is not shown, and the key is public in a browser | moderate | chain |
+| [16](#16-shared-testnet-limits-are-not-stated) | Shared-testnet limits are not stated | moderate | chain |
+| [2](#2-wallet-client-has-no-read-actions) | The wallet client has no read actions | minor | source |
+| [6](#6-expiry-durations-multiples-of-2-s-only-approximate-and-permanent-exists) | Expiry must be a multiple of 2 s, is approximate, and `permanent()` exists | minor | source |
+| [9](#9-no-match-all-query-and-no-filtered-count) | No match-all query and no filtered count | minor | source |
+| [11](#11-reserved-attribute-names-are-only-discoverable-in-source) | Reserved attribute names are only discoverable in source | minor | source |
+| [12](#12-entities-come-back-as-type-value-wrappers-with-bigint-jsonstringify-throws) | Entities come back as `{type, value}` wrappers with `bigint`, so `JSON.stringify` throws | minor | source, chain |
+| [14](#14-building-a-query-string-to-log-or-document-is-not-a-documented-feature) | Printing a query string is not documented | minor | build |
+| [20](#20-seeding-history-is-slow-by-construction) | Seeding history is slow by construction | minor | chain |
+| [15](#15-bun-export-condition-listed-first-in-the-package) | `bun` export condition listed first | info | source |
+| [19](#19-node-rejection-messages-are-excellent-positive) | Node rejection messages are excellent | **positive** | chain |
+| [23](#23-historical-reads-atblock-made-a-trustless-no-show-proof-possible-positive) | Historical reads (`atBlock`) made a trustless no-show proof possible | **positive** | chain |
+
+The one thing we would fix first is in [section C](#c-one-thing-arkiv-should-improve-first).
+
+## A. Findings
+
+### 1. `ne()` / `!=` is in the SDK but the network rejects it
 - **SDK**: 0.8.1. **Symbol**: `import { ne } from '@arkiv-network/sdk/query'`, `ne('x', i32(1))`.
 - **Expected**: an operator the typed API offers is accepted by the network, or is not offered.
 - **Actual**: the builder renders `x != i32(1)` without error; the node rejects it only at request time (`QueryError` kind `type`, -32002, see S7). Evidence: `chain`.
@@ -110,7 +145,7 @@ How to read this file:
 - **Expected**: subscribe to "my project's runs"; be told when something expires.
 - **Actual**: the stream is all of Tiramisu (a third-party indexer load generator creates entities every block), events have key + owner only, `ExpiryExtended.owner` is the entity owner not the extender, and nothing fires on expiry. A project-filtered live board needs one `get` per foreign event. Evidence: `source` and `chain` (observed foreign traffic on 16 Oct).
 - **Reproduce**: subscribe and log; count events without `project=bhaiyaplease`.
-- **Workaround**: one shared poller, resolves unknown keys at <= 10 `get`/s, remembers foreign keys, UI hides by `eta`/`expiresAt` on a ticking clock (`arkiv/watcher.ts`).
+- **Workaround**: core keeps one shared poller that resolves unknown keys at ≤ 10 `get`/s and remembers foreign keys (`arkiv/watcher.ts`); the UI hides expired items by `eta` / `expiresAt` on a ticking clock. On the real chain the app no longer subscribes at all, because of the read cost (finding 22): screens poll their own small queries and Arkiv Triggers delivers pushes. The sandbox still uses the event stream.
 - **Time lost (estimate)**: 2 h.
 
 ### 14. Building a query string to log or document is not a documented feature
@@ -129,12 +164,12 @@ How to read this file:
 - **Workaround**: none needed.
 - **Time lost (estimate)**: 0 min.
 
-### 16. Shared-testnet behaviour we need to plan around
-- **SDK**: 0.8.1. **Symbol**: public RPC without access key.
-- **Expected**: rate limits stated.
-- **Actual**: the public RPC served `select`, system-attribute filters, `getEntity` and `atBlock` queries without a key on 16 Oct. We do not yet know the limit under judge load. Evidence: `chain` (read-only, unfunded probe).
-- **Reproduce**: `scripts/spike` read steps.
-- **Workaround**: retry with backoff on 429/5xx (reads only; writes retried only before broadcast), batching of joins, `staleTime`.
+### 16. Shared-testnet limits are not stated
+- **SDK**: 0.8.1. **Symbol**: public RPC with and without an access key.
+- **Expected**: rate limits and quotas stated up front.
+- **Actual**: none are documented. The public RPC served `select`, system-attribute filters, `getEntity` and `atBlock` queries without a key on 16 Oct. We then measured two separate limits: a request rate limit (anonymous `ratelimit: limit=600, reset=60`, S8) and, a day later, a cost-based read quota that is the one apps actually hit (finding 21). Evidence: `chain`.
+- **Reproduce**: `scripts/spike` read steps; response headers on any RPC call.
+- **Workaround**: transient 429/5xx are retried with backoff (reads only; writes only before broadcast); a spent quota is never retried (finding 21); joins are batched; each query family has its own polling interval.
 - **Time lost (estimate)**: 30 min.
 
 ## B. Chain spike and seed results (16 Oct 2026)
