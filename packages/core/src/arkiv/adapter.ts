@@ -16,7 +16,7 @@ import { addr, bytes32, i32, key, str, u64 } from '@arkiv-network/sdk/attr';
 import type { AttributeInputs, ValueInput } from '@arkiv-network/sdk/attr';
 import { eq, gt, gte, lt, lte, or } from '@arkiv-network/sdk/query';
 import type { Expression } from '@arkiv-network/sdk/query';
-import { bytesToString, custom, http, stringToBytes } from 'viem';
+import { bytesToString, custom, http, stringToBytes, webSocket } from 'viem';
 import type { Chain, EIP1193Provider } from 'viem';
 import { nonceManager, privateKeyToAccount } from 'viem/accounts';
 import { BhaiyaPleaseError } from '../types';
@@ -354,21 +354,53 @@ export async function createArkivAdapter(config: BhaiyaPleaseConfig): Promise<Ar
       return queue(() => fn(writer));
     },
     watch(onEvent: (e: RawEvent) => void) {
-      return pub.watchEntityEvents({
-        pollingInterval: config.pollIntervalMs ?? 2000,
-        onError: (err) => report('watchEntityEvents', err),
-        onEntityCreated: (e) => onEvent({ kind: 'created', key: lowerHex(e.entityKey), owner: lowerHex(e.owner) }),
-        onEntityPatched: (e) => onEvent({ kind: 'patched', key: lowerHex(e.entityKey), owner: lowerHex(e.owner) }),
-        onExpiryExtended: (e) => onEvent({ kind: 'extended', key: lowerHex(e.entityKey), owner: lowerHex(e.owner) }),
-        onOwnershipTransferred: (e) =>
-          onEvent({
-            kind: 'transferred',
-            key: lowerHex(e.entityKey),
-            owner: lowerHex(e.previousOwner),
-            newOwner: lowerHex(e.newOwner),
-          }),
-        onEntityDeleted: (e) => onEvent({ kind: 'deleted', key: lowerHex(e.entityKey), owner: lowerHex(e.owner) }),
+      // Live updates: one WebSocket subscription (the chain pushes each event, no refresh loop). If the
+      // socket cannot connect or drops, fall back to the SDK's HTTP poller so the UI never goes stale.
+      const handlers = (op: string, onError: (err: unknown) => void) => ({
+        onError: (err: unknown) => {
+          report(op, err);
+          onError(err);
+        },
+        onEntityCreated: (e: { entityKey: string; owner: string }) => onEvent({ kind: 'created', key: lowerHex(e.entityKey), owner: lowerHex(e.owner) }),
+        onEntityPatched: (e: { entityKey: string; owner: string }) => onEvent({ kind: 'patched', key: lowerHex(e.entityKey), owner: lowerHex(e.owner) }),
+        onExpiryExtended: (e: { entityKey: string; owner: string }) => onEvent({ kind: 'extended', key: lowerHex(e.entityKey), owner: lowerHex(e.owner) }),
+        onOwnershipTransferred: (e: { entityKey: string; previousOwner: string; newOwner: string }) =>
+          onEvent({ kind: 'transferred', key: lowerHex(e.entityKey), owner: lowerHex(e.previousOwner), newOwner: lowerHex(e.newOwner) }),
+        onEntityDeleted: (e: { entityKey: string; owner: string }) => onEvent({ kind: 'deleted', key: lowerHex(e.entityKey), owner: lowerHex(e.owner) }),
       });
+      let stopped = false;
+      let stopLive: (() => void) | undefined;
+      const startPolling = () => {
+        if (stopped) return;
+        stopLive = pub.watchEntityEvents({ pollingInterval: config.pollIntervalMs ?? 2000, ...handlers('watchEntityEvents', () => {}) });
+      };
+      const wsUrl = config.wsUrl === undefined ? (chain.rpcUrls.default.webSocket?.[0] ?? '') : config.wsUrl;
+      if (!wsUrl) {
+        startPolling();
+      } else {
+        let fellBack = false;
+        const fallBack = () => {
+          if (fellBack || stopped) return;
+          fellBack = true;
+          try {
+            stopLive?.();
+          } catch {}
+          startPolling();
+        };
+        try {
+          const ws = createPublicClient({ chain, transport: webSocket(wsUrl, { retryCount: 0, reconnect: { attempts: 5, delay: 2000 }, keepAlive: { interval: 20_000 } }) });
+          stopLive = ws.watchEntityEvents(handlers('watchEntityEvents(ws)', fallBack));
+        } catch (err) {
+          report('watchEntityEvents(ws)', err);
+          fallBack();
+        }
+      }
+      return () => {
+        stopped = true;
+        try {
+          stopLive?.();
+        } catch {}
+      };
     },
     balance: (a) => retryRead('getBalance', () => pub.getBalance({ address: a })),
     blockNumber: () => retryRead('getBlockNumber', () => pub.getBlockNumber()),

@@ -460,6 +460,7 @@ export type SignerConfig =
 
 export interface BhaiyaPleaseConfig {
   rpcUrl: string; // https://rpc.tiramisu.db-chain.testnet.arkiv.network
+  /** WebSocket RPC for live entity events (default: the chain's own WS endpoint; pass "" to force polling). */
   wsUrl?: string;
   /** hub.arkiv.network access key. Public in the bundle; rate-limit only, not a secret of value. */
   accessKey?: string;
