@@ -45,7 +45,7 @@ Everything runs on **Arkiv Tiramisu testnet only**. All wallets are test wallets
 3. [Features](#features)
 4. [Screenshots](#screenshots)
 5. [Demo video](#demo-video)
-6. [On-chain evidence](#on-chain-evidence): [contracts](#contracts) · [wallets](#wallets) · [demo transactions](#demo-transactions) · [Triggers](#arkiv-triggers-firing-receipts) · [how to verify](#how-to-verify)
+6. [On-chain evidence](#on-chain-evidence): [contracts](#contracts) · [wallets](#wallets) · [demo transactions](#demo-transactions) · [Triggers](#arkiv-triggers-on-the-live-app) · [how to verify](#how-to-verify)
 7. [Architecture](#architecture) and [repository layout](#repository-layout)
 8. [Quick start](#quick-start)
 9. [Deployment](#deployment)
@@ -203,8 +203,11 @@ Each wrote requests and receipts for the seeded riders. Judges' own burner walle
 
 | Address | Role | Creates / owns |
 |---|---|---|
-| [`0x172c3ccdd95d9183913dce2d01225a78172dbb41`](https://tiramisu.explorer.arkiv.network/address/0x172c3ccdd95d9183913dce2d01225a78172dbb41) | Resident **"Jade Mynah"** | Created the `request` and the two `trigger` entities (below) |
-| [`0x761f93d2daae17d1ea50afc230996048decc5a02`](https://tiramisu.explorer.arkiv.network/address/0x761f93d2daae17d1ea50afc230996048decc5a02) | Rider **"Pearl Cobra"** | Created the `run` and the `accept`; patched the run "at the gate" |
+| [`0xc7d16f0c…b86df876`](https://tiramisu.explorer.arkiv.network/address/0xc7d16f0cd74ccc7cea1e1d8cbbe45a7cb86df876) | Resident **"Ruby Heron"** (push on) | Created the `request` and the `trigger` entities for alerts |
+| [`0x7b33440f…ec18c87e`](https://tiramisu.explorer.arkiv.network/address/0x7b33440f1ae84362d602017283af0f49ec18c87e) | Rider **"Mint Koel"** | Created the `run` and the `accept`; marked "at the gate" |
+| [`0x6ef25537…87e2c219`](https://tiramisu.explorer.arkiv.network/address/0x6ef25537dfcd621bc2142dc0a5f003bc87e2c219) | Resident **"Marigold Lynx"** (no-show run) | Created the `request` that the rider never delivered |
+| [`0xfc2cec81…b5029586`](https://tiramisu.explorer.arkiv.network/address/0xfc2cec816b2adff5331b521475d5c6d8b5029586) | Rider **"Jade Elephant"** (no-show run) | Accepted the request and never reached the gate |
+| [`0x0f6bc19e…0980c271`](https://tiramisu.explorer.arkiv.network/address/0x0f6bc19ed15e4b939decb1359dcea6c30980c271) | **Triggers worker** (production) | Evaluates triggers and signs every `firing` receipt and `noshow` evidence entity |
 
 ### Demo transactions
 
@@ -224,22 +227,28 @@ Full hashes and keys are in the link targets. Step 2 is one sample of the roughl
 
 **What the receipt transaction proves** (step 7, [`0x60373aef…6ca8d471`](https://tiramisu.explorer.arkiv.network/tx/0x60373aefe42ee24b6390479d2f0452c39e92e16dda8b7f48bdf0d1996ca8d471)): three operations in one transaction (`CREATE` receipt, `EXTEND` request, `TRANSFER` receipt to the rider). The transaction sender, and so the entity's `$creator`, is Marigold Koel; the entity's `$owner` is Basil Monkey; the entity is `readonly` and expires 15,768,000 blocks (about 365 days) after block 689,768.
 
-### Arkiv Triggers firing receipts
+### Arkiv Triggers on the live app
 
-The Triggers worker ([`0x0f6bc19e…0980c271`](https://tiramisu.explorer.arkiv.network/address/0x0f6bc19ed15e4b939decb1359dcea6c30980c271)) watches the chain for `trigger` entities. For resident Jade Mynah's two triggers it evaluated the conditions when rider Pearl Cobra accepted and then tapped "at the gate", and wrote a signed `firing` receipt entity for each.
+The Triggers worker ([`0x0f6bc19e…0980c271`](https://tiramisu.explorer.arkiv.network/address/0x0f6bc19ed15e4b939decb1359dcea6c30980c271), [arkiv-triggers-worker.onrender.com](https://arkiv-triggers-worker.onrender.com)) watches the chain for `trigger` entities, sends the push alert and writes a signed `firing` receipt entity back to Arkiv for every action.
 
-| Firing | Receipt tx | Block | Firing-receipt entity | Trigger entity | Evaluated at block |
-|---|---|---|---|---|---|
-| `created`: "Pearl Cobra accepted your request" | [`0xc508a1dd…90430ed1`](https://tiramisu.explorer.arkiv.network/tx/0xc508a1ddc408715262976177ed0cfd16519ee573e684f9ed32c7936b90430ed1) | 725,073 | [`0x79ff584a…fda758af`](https://tiramisu.explorer.arkiv.network/entity/0x79ff584ae76129d945c9092967d7182caad1d0e54ed7a5fa92909e94fda758af) | [`0xffaa0ff1…e912f7b5`](https://tiramisu.explorer.arkiv.network/entity/0xffaa0ff16100d18022b4f31d3967727ebd30c25035a31b7219f23e27e912f7b5) | 725,068 |
-| `patched`: "Pearl Cobra is at the gate" | [`0x48818797…e1e28beb`](https://tiramisu.explorer.arkiv.network/tx/0x48818797991c7464f92fa2b01c393dd84442bd96d184a330b0dbdf63e1e28beb) | 725,135 | [`0x63bc3f50…d40c9463`](https://tiramisu.explorer.arkiv.network/entity/0x63bc3f503a563d1f661eebdf0eecba914a10b5b2b22f9d4128b6e680d40c9463) | [`0x58bf2fa9…735baecc`](https://tiramisu.explorer.arkiv.network/entity/0x58bf2fa91eff5972fa3b5ea0f92aa28d759a6d8a0ece55f4fed9acbd735baecc) | 725,130 |
+**Push alert delivered.** Resident "Ruby Heron" turned on push in the app (a real web-push subscription). When rider "Mint Koel" accepted the request and then tapped "at the gate", the worker pushed both alerts, and the app's Alerts inbox shows each as "via Arkiv Trigger".
 
-The errand behind them:
+| Firing | Outcome | Receipt tx | Block | Firing-receipt entity | Trigger entity | Evaluated at block |
+|---|---|---|---|---|---|---|
+| `created`: "Mint Koel accepted your request" | `delivered` | [`0xef7f81de…3b25ff08`](https://tiramisu.explorer.arkiv.network/tx/0xef7f81de9572abfb8d306b52701f28fecb2d499a972a68a37dcb3d993b25ff08) | 733,873 | [`0x4f340185…3f30f8d5`](https://tiramisu.explorer.arkiv.network/entity/0x4f340185b1832efdf74c64acfd52eab6512288d87dcb9094b0e977ec3f30f8d5) | [`0x0d989b80…e4f0e593`](https://tiramisu.explorer.arkiv.network/entity/0x0d989b804e9d4a35b9e51cb8cc201ff3ec35cb37bd5695082e2e1a90e4f0e593) | 733,867 |
+| `patched`: "Mint Koel is at the gate" | `delivered` | [`0x7f32e427…231c49d1`](https://tiramisu.explorer.arkiv.network/tx/0x7f32e42797b1e515b9257956f555f50048487e2f236904dcce78ad6c231c49d1) | 733,905 | [`0x242c9360…6bb8252e`](https://tiramisu.explorer.arkiv.network/entity/0x242c93609e421b715b8d2411a2418e6d4944474bf3688ea069da6ba66bb8252e) | [`0x3688082d…7c7104bf`](https://tiramisu.explorer.arkiv.network/entity/0x3688082d2d62c0e17aab3710e99fba5183f7a1eaeee2a8696d1fc6ea7c7104bf) | 733,900 |
 
-| Entity | Key |
+The errand behind them: request [`0xcf70e064…33f7a578`](https://tiramisu.explorer.arkiv.network/entity/0xcf70e0642eed3a3caa13c09fd4aa437f0317d58c61db36c44fdf705533f7a578); accept [`0x14142abc…2ff21129`](https://tiramisu.explorer.arkiv.network/entity/0x14142abc8525b347bf02d5932deb99321c67be096f16ad8e5cda15a72ff21129); run [`0xf2479caa…e7958a77`](https://tiramisu.explorer.arkiv.network/entity/0xf2479caaa83922b9ac8cfee890d0a5659857e81e85db2bb7bb2100c0e7958a77).
+
+**Provable no-show.** Resident "Marigold Lynx" requested an errand, rider "Jade Elephant" accepted it and never reached the gate. The deadline passed with no delivery, so the worker checked the chain at block 733,510 and, in one transaction, wrote the `noshow` evidence entity (read-only, about 180 days) and its signed firing receipt (outcome `attested`). The resident's app shows "Proof saved: anyone can check", and the report screen reads "Checked on the network".
+
+| What | Link |
 |---|---|
-| `run` (Pearl Cobra) | [`0x7af77fb3…eb6f1b5f`](https://tiramisu.explorer.arkiv.network/entity/0x7af77fb356c8df6c59b64829ef57c778b3f44261ae6b47d1612acb2eeb6f1b5f) |
-| `request` (Jade Mynah) | [`0xaa928809…7c24402a`](https://tiramisu.explorer.arkiv.network/entity/0xaa92880963326f21b7bf7c1a9b7d69372aca5d27b009496538abe3c97c24402a) |
-| `accept` | [`0x55d18646…b9eb9083`](https://tiramisu.explorer.arkiv.network/entity/0x55d18646887686e9f06e5b1e652b4eb125b65d4173e884650ee82aa6b9eb9083) |
+| Evidence + firing receipt tx (block 733,515, from the worker) | [`0x3fdd0b93…e9d988a9`](https://tiramisu.explorer.arkiv.network/tx/0x3fdd0b9387cfe8dee1f2246a79b19ef2eaa5ba727650a81e1fd105cbe9d988a9) |
+| `noshow` evidence entity | [`0xe205f33e…2d9f4e5e`](https://tiramisu.explorer.arkiv.network/entity/0xe205f33e36310f5014fa7ac60b7f4bb37ed7273612816e9e56ae24102d9f4e5e) |
+| Firing-receipt entity (`attested`) | [`0x9c5921ba…99af21c6`](https://tiramisu.explorer.arkiv.network/entity/0x9c5921bae760bfdc950052290154cc75021a07c27da891d5c98efb5599af21c6) |
+| Trigger entity | [`0x3dfcaecc…df5d7285`](https://tiramisu.explorer.arkiv.network/entity/0x3dfcaecc462b20c73d3daeec042711f582ff1034d8391a93055fdce5df5d7285) |
+| Request / run / accept | [`0x8faed9b5…ea887846`](https://tiramisu.explorer.arkiv.network/entity/0x8faed9b5e8cbdeef0b52739f0ab46a62b82adbe522af3c37e6bf42c1ea887846) · [`0x35803e66…704512e6`](https://tiramisu.explorer.arkiv.network/entity/0x35803e66cb5f955d6361d49190e8ce5f80b1b59fe023e2b1aba27df3704512e6) · [`0xfb2e53fa…c2f415c9`](https://tiramisu.explorer.arkiv.network/entity/0xfb2e53fa586714fc677394f3ea5959c1fa273dd5787858b362aebc52c2f415c9) |
 
 ### How to verify
 
