@@ -203,17 +203,71 @@ const AFFECTS: Record<string, string[]> = {
 };
 const ALL_FAMILIES = [...new Set(Object.values(AFFECTS).flat())];
 
-/** One live subscription for the whole app: chain/mock events refresh only the affected query families (debounced). */
+const ADDRESS_RE = /0x[0-9a-fA-F]{40}/g;
+
+/** Wallet addresses that appear in what the viewer is looking at (their own, riders, residents). */
+function relevantAddresses(qc: QueryClient, me: string | null): Set<string> {
+  const set = new Set<string>();
+  if (me) set.add(me.toLowerCase());
+  for (const q of qc.getQueryCache().getAll()) {
+    const d = q.state.data;
+    if (!d) continue;
+    let text: string;
+    try {
+      text = JSON.stringify(d, (_k, v) => (typeof v === 'bigint' ? v.toString() : v));
+    } catch {
+      continue;
+    }
+    if (text.length > 400_000) continue;
+    for (const m of text.match(ADDRESS_RE) ?? []) set.add(m.toLowerCase());
+  }
+  return set;
+}
+
+/**
+ * One live subscription for the whole app. Real chain: a single WebSocket pushes every Arkiv entity event;
+ * we read nothing for them (the event already names the owner) and refresh the screens only when the owner
+ * is someone the viewer is looking at: themselves, or the rider/resident on their request. Polling
+ * (FRESHNESS) stays as the backstop. Mock: events refresh only the affected query families.
+ */
 function LiveBridge() {
-  const { core } = useSession();
+  const { core, address } = useSession();
   const qc = useQueryClient();
   const pending = useRef(new Set<string>());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    // Real chain: no global event watcher. Tiramisu is shared, so the watcher would spend one paid
-    // read classifying every other project's new entity; polling (FRESHNESS) plus Arkiv Trigger
-    // pushes keep screens fresh instead. The mock emits events for free, so it keeps them.
-    if (!core || CORE_MODE === 'real') return;
+    if (!core) return;
+    if (CORE_MODE === 'real') {
+      let known = new Set<string>();
+      let knownAt = 0;
+      let last = 0;
+      let t: ReturnType<typeof setTimeout> | null = null;
+      const off = core.watchOwners(
+        (owner) => {
+          const now = Date.now();
+          if (now - knownAt > 3000) {
+            known = relevantAddresses(qc, address ?? null);
+            knownAt = now;
+          }
+          return known.has(owner.toLowerCase());
+        },
+        () => {
+          if (t) return;
+          // Debounce a burst, and never refresh more than once every 4 s (keeps the free read quota safe).
+          const wait = Math.max(800, 4000 - (Date.now() - last));
+          t = setTimeout(() => {
+            t = null;
+            last = Date.now();
+            markEvent();
+            void qc.invalidateQueries({ predicate: (q) => ALL_FAMILIES.includes(String(q.queryKey[1])) });
+          }, wait);
+        },
+      );
+      return () => {
+        off();
+        if (t) clearTimeout(t);
+      };
+    }
     const off = core.subscribe({}, (e) => {
       markEvent();
       for (const f of e.type ? (AFFECTS[e.type] ?? []) : ALL_FAMILIES) pending.current.add(f);
@@ -231,7 +285,7 @@ function LiveBridge() {
       if (timer.current) clearTimeout(timer.current);
       timer.current = null;
     };
-  }, [core, qc]);
+  }, [core, qc, address]);
   return null;
 }
 

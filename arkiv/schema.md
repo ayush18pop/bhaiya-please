@@ -236,8 +236,8 @@ A trusted `successor` attestation carries the `prev` wallet's receipts over.
 
 | Situation | How screens stay fresh | Why |
 |---|---|---|
-| **Real chain** | No global event subscription. Each screen polls only its own query family, and polling pauses in background tabs (`FRESHNESS` in [`hooks/queries.ts`](../apps/mobile/hooks/queries.ts)). The moments that matter (accepted, at the gate, handed over, declined, new request, run ending, a run heading to my society) arrive as push notifications from **Arkiv Triggers** (section 13): one worker runs one query per distinct watch for all subscribers, instead of every phone polling. | `watchEntityEvents` events carry no attributes, so on the shared testnet a browser would pay one read per *other* project's entity just to classify it. Under the cost-based read quota that is unaffordable ([`friction.md`](friction.md) findings 21 and 22). |
-| **Sandbox** (in-memory mock chain) | The app subscribes to core events and refreshes only the query families the event's entity type affects (debounced 400 ms). The Triggers engine runs in the page and fires in-app notifications. | Mock events are free. |
+| **Real chain** | **Live push over one WebSocket.** The app opens a single `watchEntityEvents` subscription on a WebSocket transport (no `fromBlock`, no refresh loop). The event already names the entity's owner, so we read nothing for it: when the owner is the viewer or someone on their screen (the rider on their request, the resident on their run), the affected screens refetch within about a second (debounced, at most once every 4 s). If the socket cannot connect or drops, core falls back to the SDK's HTTP poller automatically. Polling per query family (`FRESHNESS` in [`hooks/queries.ts`](../apps/mobile/hooks/queries.ts)) stays as the backstop and pauses in background tabs. The moments that matter (accepted, at the gate, handed over, declined, new request, run ending) also arrive as push notifications from **Arkiv Triggers** (section 13). | The WebSocket is free of RPC quota; classifying a foreign entity would cost one read each on the shared testnet (friction 22), so we filter on the owner in the event instead of reading. |
+| **Offline mock chain** | The app subscribes to core events and refreshes only the query families the event's entity type affects (debounced 400 ms). The Triggers engine runs in the page and fires in-app notifications. | Mock events are free. |
 
 Polling intervals on the real chain:
 
@@ -249,7 +249,7 @@ Polling intervals on the real chain:
 | profiles, receipts, attestations | 2 min |
 | shops | 5 min |
 
-Core still exports a shared `watchEntityEvents` poller (`subscribe()`, [`arkiv/watcher.ts`](../packages/core/src/arkiv/watcher.ts): 2 s interval, unknown keys resolved at ≤ 10 reads/s, foreign keys remembered) for tools and the sandbox.
+Core also exports a shared `watchEntityEvents` watcher (`subscribe()`, [`arkiv/watcher.ts`](../packages/core/src/arkiv/watcher.ts): unknown keys resolved at ≤ 10 reads/s, foreign keys remembered) for tools and the offline mock, and `watchOwners()`, the read-free owner-filtered hint the app uses on the real chain.
 
 ## 8. Feature → what the user sees
 
@@ -281,7 +281,7 @@ Core still exports a shared `watchEntityEvents` poller (`subscribe()`, [`arkiv/w
 | `successor` attestation | attestation | Shown as "Moved from an older account" when present | shown; issuing is core only |
 | `extendEntity` by the owner | receipt | The runner renews receipts for another year | core only |
 | `atBlock` historical profile | `getProfileAt` | "Tier when you accepted" dispute view | core only |
-| `watchEntityEvents` | all | Instant refresh in the sandbox (section 7) | sandbox only |
+| `watchEntityEvents` over a WebSocket transport | all | Screens refresh within about a second when the rider or resident they are looking at acts (section 7) | shown |
 
 "Core only" features are implemented and tested in `packages/core`, but are not claimed as user-visible.
 

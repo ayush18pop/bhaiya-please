@@ -215,3 +215,27 @@ describe('createMockBhaiyaPlease', () => {
     m.close();
   });
 });
+
+describe('watchOwners (live hint, no reads)', () => {
+  it('fires only for events whose owner matches, and stops after unsubscribe', async () => {
+    const alice = '0x00000000000000000000000000000000000000a1' as Address;
+    const bob = '0x00000000000000000000000000000000000000b2' as Address;
+    const a = createMockBhaiyaPlease({ latencyMs: 0, seed: false, address: alice });
+    let hits = 0;
+    const off = a.watchOwners((o) => o.toLowerCase() === bob, () => hits++);
+    await a.listShop({ zone: NORTH, category: 'grocery', nameTag: 'Alice shop' });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(hits).toBe(0);
+    const matchAlice = a.watchOwners((o) => o.toLowerCase() === alice, () => hits++);
+    await a.listShop({ zone: NORTH, category: 'grocery', nameTag: 'Alice shop 2' });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(hits).toBeGreaterThan(0);
+    const before = hits;
+    off();
+    matchAlice();
+    await a.listShop({ zone: NORTH, category: 'grocery', nameTag: 'Alice shop 3' });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(hits).toBe(before);
+    a.close();
+  });
+});

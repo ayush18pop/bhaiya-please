@@ -88,6 +88,7 @@ What each Arkiv feature does for the user, and what would break on Postgres, IPF
 | Atomic `executeBatch` | Accept + capacity decrement, and receipt + transfer, cannot half-happen. |
 | `predictEntityKeys` | The handoff commit includes the request's own key, so it must be known before the request exists. |
 | **Arkiv Triggers** (built on top) | Push alerts and provable no-shows need "do X when an entity is created or about to expire". We built it as a protocol of Arkiv entities with a worker that writes signed firing receipts back to the chain. See [`docs/TRIGGERS.md`](docs/TRIGGERS.md). |
+| `watchEntityEvents` over a **WebSocket** | The app opens one WebSocket and the chain pushes every entity event, so screens react the moment the rider or resident they are looking at acts, with no refresh loop (automatic fallback to polling if the socket drops). A backend would have to do this fan-out for you. |
 | No operator | The board has no backend of ours. If we vanish, receipts stay readable and owned by their holders. |
 
 ## How it works
@@ -300,7 +301,7 @@ flowchart TB
     UI --> SVC
     SVC --> ADP
     SVC --> MOCK
-    ADP -->|"create / patch / extend / transfer / executeBatch<br/>select().where() / watchEntityEvents"| CHAIN[("Arkiv Tiramisu testnet<br/>EntityRegistry 0x4400…0044")]
+    ADP -->|"create / patch / extend / transfer / executeBatch<br/>select().where() / watchEntityEvents (WebSocket)"| CHAIN[("Arkiv Tiramisu testnet<br/>EntityRegistry 0x4400…0044")]
     ENG -->|"queries and firing receipts"| CHAIN
     UI -->|"channels, /firings poll"| ENG
     OPS["scripts/seed · seed, heartbeat, fund, live-check"] --> ADP

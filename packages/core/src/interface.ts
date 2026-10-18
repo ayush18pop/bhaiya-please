@@ -268,6 +268,13 @@ export interface BhaiyaPlease {
    */
   subscribe(filter: SubscribeFilter, cb: (e: ChangeEvent) => void): Unsubscribe;
 
+  /**
+   * Cheap live hint: calls `cb` when a chain event's owner (or new owner) satisfies `match`. It reads
+   * nothing, so it costs no RPC quota. Real core: one shared WebSocket subscription (polling fallback);
+   * mock: the same events for free. The app uses it to refresh only what changed for the viewer.
+   */
+  watchOwners(match: (owner: Address) => boolean, cb: () => void): Unsubscribe;
+
   /** Stop the shared watcher and release resources. */
   close(): void;
 }

@@ -136,15 +136,14 @@ Owner at transfer time is the creator, so the owner check passes; `readonly` ent
 Remaining 15%: engine is a closed node, no test in the SDK does exactly create+transfer; verify on Tiramisu first thing.
 Fallback if it reverts: two txs (createEntity, then changeOwnership), losing atomicity.
 **(b) watchEntityEvents filter:** None server-side. Only `fromBlock` and `pollingInterval`. Internally viem `watchEvent` with
-`address: 0x4400...0044` + event ABI. Filter client-side on `e.owner` / attributes after fetch. Polling over HTTP, no WS needed.
+`address: 0x4400...0044` + event ABI. Filter client-side on `e.owner` / attributes after fetch. Works over an HTTP poller or a WebSocket transport (`webSocket(url)`); core uses the WebSocket and falls back to polling.
 **(c) numeric reads:** typed per declared type: i32 number, u64/u256 bigint, dec string. Never hex to the caller.
 (RPC sends u64/u256 as 0x QUANTITY; SDK decodes.) Block fields bigint. Do not `JSON.stringify` entities (bigint throws).
 **(d) browser build:** Yes. dist has no `node:` imports; zlib path guarded by `typeof process`; esbuild browser bundle OK.
 Needs `globalThis.crypto.getRandomValues` (fine in browsers). Vite may need `target: es2020+` for bigint literals.
 **(e) access key / custom RPC:** Docs: "append the access key to the end of the RPC URL" (format not shown):
 `http("https://rpc.tiramisu.db-chain.testnet.arkiv.network/<KEY>")`. Header alternative via viem:
-`http(url, { fetchOptions: { headers: { "X-API-KEY": key } } })`. Both verified on chain (friction finding 17); core uses the header. WS: `webSocket(url)` works as transport but
-watch uses polling anyway. WARNING: a key in a static PWA is visible to every visitor.
+`http(url, { fetchOptions: { headers: { "X-API-KEY": key } } })`. Both verified on chain (friction finding 17); core uses the header. WS: `webSocket(url)` works as the transport for `watchEntityEvents` (verified 18 Oct: ~1 event/s from the shared testnet, first event within 2 s; no key needed on the public socket; browsers cannot set the X-API-KEY header on a WebSocket). WARNING: a key in a static PWA is visible to every visitor.
 
 ## Corrections to our initial assumptions
 1. **`ne()` / `!=` EXISTS in the SDK** (`ne`, ComparisonOperator `!=`), but docs say the current network rejects it. Use

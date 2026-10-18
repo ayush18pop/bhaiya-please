@@ -40,6 +40,9 @@ export function createDomain(ctx: ServiceContext, opts: DomainOptions): BhaiyaPl
   const port = ctx.port;
   const nsOpts = ctx.drop ? { drop: ctx.drop } : {};
 
+  const ownerListeners = new Set<{ match: (owner: Address) => boolean; cb: () => void }>();
+  let ownerStop: (() => void) | null = null;
+
   return {
     get address() {
       return port.address;
@@ -108,6 +111,33 @@ export function createDomain(ctx: ServiceContext, opts: DomainOptions): BhaiyaPl
     },
 
     subscribe: (filter, cb) => watcher.subscribe(filter, cb),
-    close: () => watcher.close(),
+    watchOwners(match, cb) {
+      const l = { match, cb };
+      ownerListeners.add(l);
+      if (!ownerStop) {
+        ownerStop = port.watch((e) => {
+          for (const x of ownerListeners) {
+            if ((e.owner && x.match(e.owner)) || (e.newOwner && x.match(e.newOwner))) {
+              try {
+                x.cb();
+              } catch {}
+            }
+          }
+        });
+      }
+      return () => {
+        ownerListeners.delete(l);
+        if (ownerListeners.size === 0 && ownerStop) {
+          ownerStop();
+          ownerStop = null;
+        }
+      };
+    },
+    close: () => {
+      ownerListeners.clear();
+      ownerStop?.();
+      ownerStop = null;
+      watcher.close();
+    },
   };
 }
