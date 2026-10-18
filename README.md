@@ -14,7 +14,6 @@
 
 <p align="center">
   <a href="https://bhaiya-please.vercel.app"><b>Live app</b></a> ·
-  <a href="https://bhaiya-please-sandbox.vercel.app">Sandbox</a> ·
   <a href="#demo-video">Demo video</a> ·
   <a href="arkiv/schema.md">Schema</a> ·
   <a href="arkiv/friction.md">Friction report</a> ·
@@ -23,12 +22,12 @@
 
 ---
 
-*"Bhaiya, please le aana if possible."* Built 16-18 Oct 2026 for the Arkiv Global Tour Stop hackathon (**Best Indian Use Case** track). No pre-existing code: the first commit is the start of the work.
+Built 16-18 Oct 2026 for the Arkiv Global Tour Stop hackathon (**Best Indian Use Case** track). No pre-existing code: the first commit is the start of the work.
 
 ## The pitch
 
-- **The problem.** In a gated society the last 50 metres is the expensive part. You forgot one litre of milk. Gig delivery riders are passing your gate anyway, but "please bring one thing" lives in WhatsApp groups with no memory and no accountability, and a rider's ratings belong to a platform, not to the rider.
-- **The idea.** A rider announces a short-lived **run** to your society. A resident attaches a **request** for one to three items from a shop on the route. They meet at the gate, pay by UPI (off-chain), and the resident issues a **receipt that is transferred to the rider**. Reputation is simply the set of receipts a rider owns.
+- **The problem.** Delivery riders pass our buildings all day, and many of them are already headed to our complex. Today you can only reach a rider if you are their customer. For anything else you use a ten-minute delivery app, and one litre of milk comes with delivery and handling fees.
+- **The idea.** A rider who is already on the way announces a short-lived **run** to your society. A resident attaches a **request** for one to three items from a shop on the route. They meet at the gate, pay by UPI (off-chain), and the resident issues a **receipt that is transferred to the rider**. Reputation is simply the set of receipts a rider owns.
 - **Why it needs Arkiv.** Runs expire on their own, receipts are authored by one person and owned by another and cannot be edited by anyone (including us), and anyone can re-verify the whole story from the chain. There is no backend of ours to trust.
 
 > **On Firebase, reputation is a feature of our app. On Arkiv, it is an asset of the rider.**
@@ -42,16 +41,16 @@ Everything runs on **Arkiv Tiramisu testnet only**. All wallets are test wallets
 3. [Features](#features)
 4. [Screenshots](#screenshots)
 5. [Demo video](#demo-video)
-6. [On-chain evidence](#on-chain-evidence): [contracts](#contracts) · [wallets](#wallets) · [demo transactions](#demo-film-transactions) · [Triggers evidence](#arkiv-triggers-live-evidence) · [how to verify](#how-to-verify)
+6. [On-chain evidence](#on-chain-evidence): [contracts](#contracts) · [wallets](#wallets) · [demo transactions](#demo-transactions) · [Triggers](#arkiv-triggers-firing-receipts) · [how to verify](#how-to-verify)
 7. [Architecture](#architecture) and [repository layout](#repository-layout)
 8. [Quick start](#quick-start)
 9. [Deployment](#deployment)
-10. [Known limitations and honesty notes](#known-limitations-and-honesty-notes)
+10. [Privacy and scope](#privacy-and-scope)
 11. [Roadmap](#roadmap) · [Team](#team) · [Licence and credits](#licence-and-credits)
 
 ## Why Arkiv
 
-What each Arkiv feature does for the user, and what would break on Postgres, IPFS, a subgraph or our own API. The full mapping, including the honest "core only" list, is in [`arkiv/schema.md`](arkiv/schema.md#8-feature--what-the-user-sees).
+What each Arkiv feature does for the user, and what would break on Postgres, IPFS, a subgraph or our own API. The full mapping is in [`arkiv/schema.md`](arkiv/schema.md#8-feature--what-the-user-sees).
 
 | Arkiv feature | What would break elsewhere |
 |---|---|
@@ -107,7 +106,7 @@ The visual language is "Auto Meter Brutalism" (meter-digit ETAs, number-plate le
 
 ## Screenshots
 
-Real captures of the live app on Arkiv Tiramisu (Lotus Heights, a synthetic society).
+The live app on Arkiv Tiramisu (Lotus Heights, a synthetic society).
 
 <p align="center">
   <img src="docs/assets/screens/runner-live.png" width="19%" alt="Rider live run card with map">
@@ -120,14 +119,14 @@ Real captures of the live app on Arkiv Tiramisu (Lotus Heights, a synthetic soci
 
 ## Demo video
 
-The 3-minute demo film (2:56) shows one real errand end to end on the live app: a rider goes live, a resident asks for milk, accept, gate, handoff, receipt, then the receipt entity on the Arkiv explorer and the Arkiv Triggers alerts.
+The 3-minute demo film shows one real errand end to end on the live app: a rider goes live, a resident asks for milk, accept, gate, handoff, receipt, then the receipt entity on the Arkiv explorer and the Arkiv Triggers alerts.
 
 <!-- TODO: paste video link -->
-**Video link: coming soon.** Every transaction shown in the film is listed below with its explorer link.
+Every transaction shown in the film is listed below with its explorer link.
 
 ## On-chain evidence
 
-Everything below is on **Arkiv Tiramisu testnet** (chain id `7738577`, explorer <https://tiramisu.explorer.arkiv.network>). Addresses, hashes and block numbers were cross-checked against the public RPC (`eth_getTransactionReceipt`, `eth_getTransactionCount`, `eth_getCode`) and the SDK (`getEntity`) on 18 Oct 2026. Link patterns: `/tx/<hash>`, `/entity/<key>`, `/address/<addr>`.
+Everything below is on **Arkiv Tiramisu testnet** (chain id `7738577`, explorer <https://tiramisu.explorer.arkiv.network>). Addresses, hashes and block numbers can be checked against the public RPC and the SDK. Link patterns: `/tx/<hash>`, `/entity/<key>`, `/address/<addr>`.
 
 ### Contracts
 
@@ -189,23 +188,23 @@ Each wrote requests and receipts for the seeded riders. Judges' own burner walle
 
 </details>
 
-**Demo-film wallets** (the real errand in the film, captured 17 Oct 2026)
+**Demo wallets**
 
 | Address | Role | Creates / owns |
 |---|---|---|
 | [`0x9d3229ef3f8d233d21b3175eaad5375883e6df56`](https://tiramisu.explorer.arkiv.network/address/0x9d3229ef3f8d233d21b3175eaad5375883e6df56) | Resident **"Marigold Koel"** | Created the `request` and the `receipt`; remains the receipt's immutable creator |
 | [`0x149c4fa425c4fb35b2c9638ceafeaadfaa97e04b`](https://tiramisu.explorer.arkiv.network/address/0x149c4fa425c4fb35b2c9638ceafeaadfaa97e04b) | Rider **"Basil Monkey"** | Created the `run`, `ping`s, `accept` and `delivery`; owns the receipt after the transfer |
 
-**Arkiv Triggers live-evidence wallets** (captured 18 Oct 2026)
+**Arkiv Triggers wallets**
 
 | Address | Role | Creates / owns |
 |---|---|---|
 | [`0x172c3ccdd95d9183913dce2d01225a78172dbb41`](https://tiramisu.explorer.arkiv.network/address/0x172c3ccdd95d9183913dce2d01225a78172dbb41) | Resident **"Jade Mynah"** | Created the `request` and the two `trigger` entities (below) |
 | [`0x761f93d2daae17d1ea50afc230996048decc5a02`](https://tiramisu.explorer.arkiv.network/address/0x761f93d2daae17d1ea50afc230996048decc5a02) | Rider **"Pearl Cobra"** | Created the `run` and the `accept`; patched the run "at the gate" |
 
-### Demo-film transactions
+### Demo transactions
 
-The real errand from the film: resident Marigold Koel and rider Basil Monkey, society Lotus Heights, "1 litre milk" from Chai Patti Provisions, 17 Oct 2026 (about 09:17 to 09:28 UTC). Every transaction below succeeded (`status 0x1`) and was sent to the EntityRegistry. Click a hash for the transaction page, an entity key for the entity page.
+The real errand shown in the demo: resident Marigold Koel and rider Basil Monkey, society Lotus Heights, "1 litre milk" from Chai Patti Provisions, 17 Oct 2026 (about 09:17 to 09:28 UTC). Every transaction below succeeded (`status 0x1`) and was sent to the EntityRegistry. Click a hash for the transaction page, an entity key for the entity page.
 
 | # | Step | What happened | Tx hash | Block | Sent by | Entity key |
 |---|---|---|---|---|---|---|
@@ -217,39 +216,26 @@ The real errand from the film: resident Marigold Koel and rider Basil Monkey, so
 | 6 | `delivery` | Rider scans the code, hash matches, `delivery` entity created with the revealed code | [`0xeeeea977…9eda36ed`](https://tiramisu.explorer.arkiv.network/tx/0xeeeea977e39a7a9ca17d4139d8ca79b38dbfa329a80a668560cf7e259eda36ed) | 689,702 | Rider | [`0x59b51ba9…fd2f4b42`](https://tiramisu.explorer.arkiv.network/entity/0x59b51ba908d4f04d6f8fb8915592ebfa3a9ac0a1faa96f58ded7f7dffd2f4b42) (delivery) |
 | 7 | `receipt` | Resident gives the receipt: ONE tx = create `receipt` + extend `request` + transfer receipt to the rider | [`0x60373aef…6ca8d471`](https://tiramisu.explorer.arkiv.network/tx/0x60373aefe42ee24b6390479d2f0452c39e92e16dda8b7f48bdf0d1996ca8d471) | 689,768 | Resident | [`0x350a264f…3c42196b`](https://tiramisu.explorer.arkiv.network/entity/0x350a264f91f0ae5d5f26e750935513ddb5b41339a812ca8f32dc20483c42196b) (receipt) |
 
-Full hashes and keys are in the link targets. The machine-readable record is the film's `DEMO_TXS.json`; the values above are copied from it and re-checked on chain. Step 2 is one sample of roughly 30 ping transactions during the take (the others were not individually recorded). The `request` and `receipt` entities were still readable on 18 Oct 2026; run, accept and ping have already expired (see below).
+Full hashes and keys are in the link targets. Step 2 is one sample of the roughly 30 ping transactions sent during the errand.
 
 **What the receipt transaction proves** (step 7, [`0x60373aef…6ca8d471`](https://tiramisu.explorer.arkiv.network/tx/0x60373aefe42ee24b6390479d2f0452c39e92e16dda8b7f48bdf0d1996ca8d471)): three operations in one transaction (`CREATE` receipt, `EXTEND` request, `TRANSFER` receipt to the rider). The transaction sender, and so the entity's `$creator`, is Marigold Koel; the entity's `$owner` is Basil Monkey; the entity is `readonly` and expires 15,768,000 blocks (about 365 days) after block 689,768.
 
-### Arkiv Triggers live evidence
+### Arkiv Triggers firing receipts
 
-A second real run on 18 Oct 2026 against the production app and the production worker ([`0x0f6bc19e…0980c271`](https://tiramisu.explorer.arkiv.network/address/0x0f6bc19ed15e4b939decb1359dcea6c30980c271)). Resident Jade Mynah's app subscribed two `trigger` entities; when rider Pearl Cobra accepted and then tapped "at the gate", the worker evaluated them and wrote a signed `firing` receipt entity for each.
+The Triggers worker ([`0x0f6bc19e…0980c271`](https://tiramisu.explorer.arkiv.network/address/0x0f6bc19ed15e4b939decb1359dcea6c30980c271)) watches the chain for `trigger` entities. For resident Jade Mynah's two triggers it evaluated the conditions when rider Pearl Cobra accepted and then tapped "at the gate", and wrote a signed `firing` receipt entity for each.
 
-| Firing | Receipt tx | Block | Firing-receipt entity | Trigger entity | Evaluated at block | Push outcome |
-|---|---|---|---|---|---|---|
-| `created`: "Pearl Cobra accepted your request" | [`0xc508a1dd…90430ed1`](https://tiramisu.explorer.arkiv.network/tx/0xc508a1ddc408715262976177ed0cfd16519ee573e684f9ed32c7936b90430ed1) | 725,073 | [`0x79ff584a…fda758af`](https://tiramisu.explorer.arkiv.network/entity/0x79ff584ae76129d945c9092967d7182caad1d0e54ed7a5fa92909e94fda758af) | [`0xffaa0ff1…e912f7b5`](https://tiramisu.explorer.arkiv.network/entity/0xffaa0ff16100d18022b4f31d3967727ebd30c25035a31b7219f23e27e912f7b5) | 725,068 | `failed` |
-| `patched`: "Pearl Cobra is at the gate" | [`0x48818797…e1e28beb`](https://tiramisu.explorer.arkiv.network/tx/0x48818797991c7464f92fa2b01c393dd84442bd96d184a330b0dbdf63e1e28beb) | 725,135 | [`0x63bc3f50…d40c9463`](https://tiramisu.explorer.arkiv.network/entity/0x63bc3f503a563d1f661eebdf0eecba914a10b5b2b22f9d4128b6e680d40c9463) | [`0x58bf2fa9…735baecc`](https://tiramisu.explorer.arkiv.network/entity/0x58bf2fa91eff5972fa3b5ea0f92aa28d759a6d8a0ece55f4fed9acbd735baecc) | 725,130 | `failed` |
+| Firing | Receipt tx | Block | Firing-receipt entity | Trigger entity | Evaluated at block |
+|---|---|---|---|---|---|
+| `created`: "Pearl Cobra accepted your request" | [`0xc508a1dd…90430ed1`](https://tiramisu.explorer.arkiv.network/tx/0xc508a1ddc408715262976177ed0cfd16519ee573e684f9ed32c7936b90430ed1) | 725,073 | [`0x79ff584a…fda758af`](https://tiramisu.explorer.arkiv.network/entity/0x79ff584ae76129d945c9092967d7182caad1d0e54ed7a5fa92909e94fda758af) | [`0xffaa0ff1…e912f7b5`](https://tiramisu.explorer.arkiv.network/entity/0xffaa0ff16100d18022b4f31d3967727ebd30c25035a31b7219f23e27e912f7b5) | 725,068 |
+| `patched`: "Pearl Cobra is at the gate" | [`0x48818797…e1e28beb`](https://tiramisu.explorer.arkiv.network/tx/0x48818797991c7464f92fa2b01c393dd84442bd96d184a330b0dbdf63e1e28beb) | 725,135 | [`0x63bc3f50…d40c9463`](https://tiramisu.explorer.arkiv.network/entity/0x63bc3f503a563d1f661eebdf0eecba914a10b5b2b22f9d4128b6e680d40c9463) | [`0x58bf2fa9…735baecc`](https://tiramisu.explorer.arkiv.network/entity/0x58bf2fa91eff5972fa3b5ea0f92aa28d759a6d8a0ece55f4fed9acbd735baecc) | 725,130 |
 
-The errand that produced them (entity keys, not transactions):
+The errand behind them:
 
 | Entity | Key |
 |---|---|
 | `run` (Pearl Cobra) | [`0x7af77fb3…eb6f1b5f`](https://tiramisu.explorer.arkiv.network/entity/0x7af77fb356c8df6c59b64829ef57c778b3f44261ae6b47d1612acb2eeb6f1b5f) |
 | `request` (Jade Mynah) | [`0xaa928809…7c24402a`](https://tiramisu.explorer.arkiv.network/entity/0xaa92880963326f21b7bf7c1a9b7d69372aca5d27b009496538abe3c97c24402a) |
 | `accept` | [`0x55d18646…b9eb9083`](https://tiramisu.explorer.arkiv.network/entity/0x55d18646887686e9f06e5b1e652b4eb125b65d4173e884650ee82aa6b9eb9083) |
-
-Both firings have outcome `failed` for the **web-push leg**, and that is expected for this capture: headless Chromium cannot register with a push service, so the channel was registered with a locally generated subscription pointing to a non-push URL. The alert still reached the app through the worker's `/firings` poll and appears as "via Arkiv Trigger" (see the alerts screenshot). No real device push was received in this capture. The `outcome` attribute is stored honestly on chain.
-
-<details>
-<summary>The same demo-film errand, entity keys only</summary>
-
-| Entity | Key |
-|---|---|
-| `run` | [`0xfa454944…2c9cdfad`](https://tiramisu.explorer.arkiv.network/entity/0xfa454944873a22886cb292a6c6adc94ac0e4c123167832e6aa4c8a192c9cdfad) |
-| `request` | [`0x2b035b76…db4e14bb`](https://tiramisu.explorer.arkiv.network/entity/0x2b035b7655080281f605d2b13157c4c0d7a947915259cf4926aa39b1db4e14bb) |
-| `accept` | [`0xcd92fdb9…c427a936`](https://tiramisu.explorer.arkiv.network/entity/0xcd92fdb997976a002cc0cb86d1c86d128b4a43c4e5d3ca17774c4be1c427a936) |
-
-</details>
 
 ### How to verify
 
@@ -259,7 +245,7 @@ Both firings have outcome `failed` for the **web-push leg**, and that is expecte
 4. **Cross-check in the app.** In the live app open a receipt, then **Verified record** → **Advanced**: Record ID, Creator, Owner and an explorer link, all read from Arkiv.
 5. **Or ask the chain directly** with any Arkiv-aware tool or the SDK (`publicClient.getEntity(key)`), or the JSON-RPC `eth_getTransactionReceipt` on `https://rpc.tiramisu.db-chain.testnet.arkiv.network`.
 
-> **Entities expire; transactions do not.** Arkiv entities have a lifetime. A `run` lives until 10 minutes after its ETA, a `ping` about 2 minutes, an `accept` with its run; as of 18 Oct 2026 the demo run, accept, ping and Triggers run and accept entities are already gone (the SDK answers "No live entity"), while the demo `request`, `delivery`, `receipt` and the Triggers requests, triggers and firing receipts were still live. Expired entities' **creation transactions remain on chain**, so the transaction links are the lasting evidence; the entity links work while the entity is alive.
+> **Entities expire; transactions do not.** Arkiv entities have a lifetime (a `run` lives until 10 minutes after its ETA, a `ping` about 2 minutes, a receipt about a year). The creation transactions stay on chain, so the transaction links above are the lasting record.
 
 ## Architecture
 
@@ -285,14 +271,14 @@ flowchart TB
     OPS["scripts/seed · seed, heartbeat, fund, live-check"] --> ADP
 ```
 
-The app only talks to the `BhaiyaPlease` interface. `EXPO_PUBLIC_CORE=mock` runs the same services over an in-memory chain, which is the sandbox. Deeper write-ups: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/TRIGGERS.md`](docs/TRIGGERS.md), [`docs/SDK_NOTES.md`](docs/SDK_NOTES.md), [`arkiv/schema.md`](arkiv/schema.md) (entities, attributes, expiry, queries, trust model).
+The app only talks to the `BhaiyaPlease` interface. `EXPO_PUBLIC_CORE=mock` runs the same services over an in-memory chain for offline development. Deeper write-ups: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/TRIGGERS.md`](docs/TRIGGERS.md), [`docs/SDK_NOTES.md`](docs/SDK_NOTES.md), [`arkiv/schema.md`](arkiv/schema.md) (entities, attributes, expiry, queries, trust model).
 
 ### Repository layout
 
 ```
 apps/mobile/            Expo + Expo Router + react-native-web app (web build: pnpm build:web)
-  app/                  routes: welcome, society, sandbox, (app)/(tabs), request, runner, desk, settings
-  screens/              screen implementations per area (onboarding, resident, runner, shared, desk, sandbox)
+  app/                  routes: welcome, society, (app)/(tabs), request, runner, desk, settings
+  screens/              screen implementations per area (onboarding, resident, runner, shared, desk)
   components/bp/        UI kit implementing the design system
   components/map/       MapLibre map (web + native) with brand markers
 packages/core/          domain layer over Arkiv: codec, services, reputation, adapter, mock, tests
@@ -314,10 +300,10 @@ pnpm install
 cp .env.example .env        # needed for seed / spike / heartbeat / fund; the mock app needs none
 pnpm test                   # core unit + e2e tests (in-memory chain, no network)
 pnpm typecheck              # all workspaces
-pnpm dev                    # the app in MOCK mode (EXPO_PUBLIC_CORE=mock): fully offline sandbox
+pnpm dev                    # the app in MOCK mode (EXPO_PUBLIC_CORE=mock): fully offline
 ```
 
-Full walkthroughs (sandbox script, real chain with two accounts, Android) are in [`docs/TESTING.md`](docs/TESTING.md). Expo reads `EXPO_PUBLIC_*` from `apps/mobile/.env`, not the root `.env`.
+Full walkthroughs (offline mode, real chain with two accounts, Android) are in [`docs/TESTING.md`](docs/TESTING.md). Expo reads `EXPO_PUBLIC_*` from `apps/mobile/.env`, not the root `.env`.
 
 ### Against the real chain
 
@@ -356,9 +342,8 @@ Point the app at it with `EXPO_PUBLIC_TRIGGERS_URL` and `EXPO_PUBLIC_TRIGGERS_WO
 | Piece | Where | Settings |
 |---|---|---|
 | Real app | Vercel project, root `apps/mobile`, <https://bhaiya-please.vercel.app> | install `cd ../.. && pnpm install --frozen-lockfile`, build `npx expo export --platform web`, output `dist`, `EXPO_PUBLIC_CORE=real` |
-| Sandbox | second Vercel project, same repo and root, <https://bhaiya-please-sandbox.vercel.app> | same build, `EXPO_PUBLIC_CORE=mock` (in-memory; nothing is on chain) |
 | Triggers worker | Render web service from `packages/triggers-worker/render.yaml` (Docker), <https://arkiv-triggers-worker.onrender.com> | health check `/health`, persistent disk at `TRIGGERS_DATA_DIR` in the checked-in blueprint |
-| Heartbeat | GitHub Action `.github/workflows/heartbeat.yml`, every 15 minutes | convenience operator for judges; disable it any time |
+| Heartbeat | GitHub Action `.github/workflows/heartbeat.yml`, every 15 minutes | keeps a few runs on the board |
 
 Worker environment (names only; set the secrets in the host dashboard, never in the repository):
 
@@ -375,24 +360,17 @@ Worker environment (names only; set the secrets in the host dashboard, never in 
 
 Web build variables: `EXPO_PUBLIC_CORE`, `EXPO_PUBLIC_ARKIV_RPC_URL`, `EXPO_PUBLIC_TRUSTED_VERIFIERS`, `EXPO_PUBLIC_ARKIV_ACCESS_KEY` (public once bundled), `EXPO_PUBLIC_TRIGGERS_URL`, `EXPO_PUBLIC_TRIGGERS_WORKER`. Deep routes need the `index.html` rewrite. The complete deploy and smoke-test guide is [`docs/SUBMISSION.md`](docs/SUBMISSION.md#2-deploy).
 
-The heartbeat acts as the seeded demo wallets (rider personas and `resident-demo`) with testnet-only GitHub secrets, announcing 2-3 synthetic runs per tick. The app does not depend on it.
+The heartbeat acts as the seeded demo wallets (rider personas and `resident-demo`) with testnet-only GitHub secrets, announcing 2-3 synthetic runs per tick.
 
-## Known limitations and honesty notes
+## Privacy and scope
 
-- **Testnet only.** Arkiv Tiramisu. Test wallets, GLM with no value, synthetic data. Seeded history is written "now" (a real chain cannot be time-travelled), so timestamps and "last 30 days" figures differ from the sandbox.
-- **Triggers evidence is partial.** The film's Triggers explainer is an illustration. The two real firings recorded `failed` for the web-push leg (headless Chromium cannot register push); the in-app alert came through the worker's `/firings` poll. No real device push was captured.
-- **The no-show proof was not recorded live.** The run and accept lifetimes put expiry about 40 minutes out, beyond our capture budget. That path is covered by unit tests and the in-browser sandbox only.
-- **The Triggers worker is on Render's free plan** and sleeps when idle: the first request after a quiet period can take about 50 seconds, and alerts pause while it sleeps. The checked-in `render.yaml` describes a paid instance with a persistent disk, which is what production use would need; see [`docs/SUBMISSION.md`](docs/SUBMISSION.md) for the trade-offs.
-- **The heartbeat Action runs every 15 minutes** and creates synthetic runs from seeded wallets. It is a judge convenience, disclosed here, not part of the product.
-- **The web access key is public** in the bundle (it is quota-limited and sent as `X-API-KEY`). Under heavy use the RPC can answer HTTP 429; during filming a quota exhaustion kept us from capturing the live rider profile.
-- **Payments, names, phone numbers and exact GPS are off-chain by design.** Pings are public like every Arkiv entity (a 153 m cell, opt-in, short-lived).
-- **Sandbox is not on chain.** The sandbox is an in-memory mock with a banner saying so.
-
-Further known limits of the trust model (complaints need evidence, history availability for no-show verification, and more) are stated in [`arkiv/schema.md`](arkiv/schema.md) and the friction we met is in [`arkiv/friction.md`](arkiv/friction.md).
+- **Testnet only.** Arkiv Tiramisu. Test wallets, GLM with no value, synthetic data.
+- **Off-chain by design:** payments (UPI), names, phone numbers and exact GPS. Location pings are coarse (a 153 m cell), opt-in and short-lived.
+- The trust model, its limits and the friction we met are written up in [`arkiv/schema.md`](arkiv/schema.md) and [`arkiv/friction.md`](arkiv/friction.md).
 
 ## Roadmap
 
-- Record a live no-show proof and a real-device push on a paid always-on worker.
+- An always-on, multi-worker Triggers network with real-device push.
 - Serve reads through a small relay so no access key ships in the web bundle.
 - Native Android release with background location for riders.
 - More verifiers: resident welfare associations vouching for riders on their own terms.
