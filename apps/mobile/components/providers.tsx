@@ -253,8 +253,8 @@ function LiveBridge() {
         },
         () => {
           if (t) return;
-          // Debounce a burst, and never refresh more than once every 4 s (keeps the free read quota safe).
-          const wait = Math.max(800, 4000 - (Date.now() - last));
+          // Debounce a burst, and never refresh more than once every 15 s: caps refetches at 4/min however many riders on screen are pinging (keeps the read quota safe).
+          const wait = Math.max(800, 15_000 - (Date.now() - last));
           t = setTimeout(() => {
             t = null;
             last = Date.now();
