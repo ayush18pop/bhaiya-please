@@ -1,7 +1,6 @@
 /**
  * BhaiyaPlease domain types. Pure types + constants, no runtime dependencies.
- * Shared contract between packages/core (Person A) and apps/web (Person B).
- * Change only by agreement of both owners after the Thu 21:00 freeze.
+ * The contract between packages/core and the app (apps/mobile).
  */
 
 // ---------------------------------------------------------------------------
@@ -103,7 +102,7 @@ export interface Request extends EntityMeta {
   destZone: Zone6;
   maxPrice: Rupees;
   tip: Rupees;
-  /** keccak256(code ‖ salt ‖ requestKey). See computeCodeCommit in ARCHITECTURE.md. */
+  /** keccak256(code ‖ salt ‖ requestKey). See arkiv/schema.md §3 (`code_commit`). */
   codeCommit: Hex;
   /** 1–3 free-text item lines, synthetic in the demo. */
   items: string[];

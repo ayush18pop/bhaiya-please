@@ -47,7 +47,7 @@ Keys involved:
 
 Worker `GET /firings?owner=<resident>` returned that firing with `outcome: delivered`, `block: 699419`, the label, body, deep link `/request/0x7a25…` and the receipt key. That is the same data the app shows.
 
-An earlier smoke run by the build agent fired a probe trigger with an unknown channel and wrote a `skipped` receipt (tx `0x8a1f…3e38`, block 691746, `$creator` = worker), which shows that refusals are receipted too.
+An earlier smoke run fired a probe trigger with an unknown channel and wrote a `skipped` receipt (tx `0x8a1f…3e38`, block 691746, `$creator` = worker), which shows that refusals are receipted too.
 
 ## What this proves
 

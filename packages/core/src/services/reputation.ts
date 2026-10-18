@@ -41,7 +41,7 @@ export function verifyDeliveryData(delivery: Delivery, request: Request | null):
 }
 
 /**
- * Receipt validity (ARCHITECTURE §3 step 3): delivery exists ∧ reveal verifies ∧
+ * Receipt validity (arkiv/schema.md §6): delivery exists ∧ reveal verifies ∧
  * delivery.$creator == delivery.rider == receipt.rider ∧ request.$creator == receipt.$creator ∧
  * receipt.$creator ≠ receipt.rider ∧ receipt, delivery and request were all created readonly.
  */

@@ -3,8 +3,7 @@
 **Verified:** `@arkiv-network/sdk@0.8.1` (latest stable; `npm i @arkiv-network/sdk@0.8` resolves to it) + `viem@2.57.7`.
 Method: read shipped `src/*.ts` (package ships `src/` and `dist/`), ran the built ESM in Node, type-checked every
 snippet below with `tsc --strict`, bundled for browser with esbuild (`--platform=browser`, 693 KB, zero `node:` imports).
-Scratch project: `/tmp/claude-1001/-home-hyprayush-Documents-Projects/4fd328e4-8afa-40c2-bc36-059e76d9c50e/scratchpad/sdkcheck` (cheat.ts compiles clean).
-NOT verified against the live chain (no funded key): see "Open questions".
+These notes come from the package source. Behaviour on the live chain was verified afterwards with `pnpm spike` (29/29 PASS); results are in [`arkiv/friction.md`](../arkiv/friction.md) section B and [`arkiv/schema.md`](../arkiv/schema.md) section 10.
 
 ## Entry points (package.json `exports`)
 | Import | Gives |
@@ -143,13 +142,13 @@ Fallback if it reverts: two txs (createEntity, then changeOwnership), losing ato
 **(d) browser build:** Yes. dist has no `node:` imports; zlib path guarded by `typeof process`; esbuild browser bundle OK.
 Needs `globalThis.crypto.getRandomValues` (fine in browsers). Vite may need `target: es2020+` for bigint literals.
 **(e) access key / custom RPC:** Docs: "append the access key to the end of the RPC URL" (format not shown):
-`http("https://rpc.tiramisu.db-chain.testnet.arkiv.network/<KEY>")` (assumed). Header alternative via viem:
-`http(url, { fetchOptions: { headers: { Authorization: ... } } })` (unverified). WS: `webSocket(url)` works as transport but
+`http("https://rpc.tiramisu.db-chain.testnet.arkiv.network/<KEY>")`. Header alternative via viem:
+`http(url, { fetchOptions: { headers: { "X-API-KEY": key } } })`. Both verified on chain (friction finding 17); core uses the header. WS: `webSocket(url)` works as transport but
 watch uses polling anyway. WARNING: a key in a static PWA is visible to every visitor.
 
-## Corrections to BRIEF.md
+## Corrections to our initial assumptions
 1. **`ne()` / `!=` EXISTS in the SDK** (`ne`, ComparisonOperator `!=`), but docs say the current network rejects it. Use
-   `not(eq(...))`. Brief said "No `!=`": right for the network, but the SDK API surface differs. Test on chain.
+   `not(eq(...))`. We assumed "no `!=`": right for the network (the node rejects it), but the SDK API surface differs.
 2. **`expiresIn` does not exist; param is `expires`**, and it must be an `ExpirationTime.*` object (no raw numbers/Date).
 3. **Max attributes is 32, not 30** (`MAX_ATTRIBUTES = 32`). Payload 128 KiB confirmed.
 4. **`bool` attribute type exists** (`bool(true)` or bare boolean); also `bytes` is system-only.
@@ -158,15 +157,15 @@ watch uses polling anyway. WARNING: a key in a static PWA is visible to every vi
 6. **System attrs:** queryable are only `$key $owner $creator $expiresAt`. `$createdAt` and `$contentType` are NOT
    filterable. `$expiresAt` is a block number (u64), not time. Need own `at`/`eta` attrs for time filters.
 7. **Expiry semantics:** extension REPLACES the expiry (counted from now), must move it later. Durations are blocks at 2 s
-   (fractions of 2 s rejected). Brief's "Run expires ETA+10 min" => compute `fromSeconds(eta - now + 600)` rounded to even.
-8. **Batch order** in the SDK is creates, patches, deletes, extensions, ownershipChanges (as brief). Result shape is
+   (fractions of 2 s rejected). For "run expires ETA + 10 min": compute `fromSeconds(eta - now + 600)` rounded to even.
+8. **Batch order** in the SDK is creates, patches, deletes, extensions, ownershipChanges (as assumed). Result shape is
    `{txHash, createdEntities, patchedEntities, deletedEntities, extendedEntities, ownershipChanges}` (key arrays).
 9. **Arkiv is not literally EVM-free on the wire**: writes are `writeContract` calls to `0x4400...0044` `execute(...)`,
-   signed EVM txs paid in GLM gas. Wallets need faucet funds; MetaMask works. No user smart contracts (brief ok).
+   signed EVM txs paid in GLM gas. Wallets need faucet funds; MetaMask works. No user smart contracts (as assumed).
 10. **predictEntityKeys** is `pub.predictEntityKeys({owner, count|salts})` returning `{key, salt}[]`: you MUST pass each
-    `salt` into the matching create (default create salt is random). Brief omitted the salt requirement.
+    `salt` into the matching create (default create salt is random). Easy to miss: the salt is required.
 11. Event handlers confirmed; extra `onEvent`, `onError`, `fromBlock`, `pollingInterval`. `onExpiryExtended.owner` is the
-    entity owner, not the extender. Expiry produces no event (brief ok).
+    entity owner, not the extender. Expiry produces no event (as assumed).
 12. Permissionless extension by a non-owner: key concern is gas (extender pays GLM); sybil/spam extension is possible.
 13. Reading numbers: tagged `{type,value}` objects, not raw numbers: `e.attributes.eta.value`.
 

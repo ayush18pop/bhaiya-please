@@ -147,9 +147,9 @@ All wallets are **testnet** wallets. Only public addresses are published; no key
 | Address | Role | Creates / owns | Source |
 |---|---|---|---|
 | [`0x7975e591c26e6c6d9b0cfd9a81f6d61a921c080c`](https://tiramisu.explorer.arkiv.network/address/0x7975e591c26e6c6d9b0cfd9a81f6d61a921c080c) | **Seed / funder wallet** (`SEED_PRIVATE_KEY`) | Only sends GLM (`pnpm fund`, `pnpm seed`, heartbeat top-ups) and ran the chain spike. Creates no app entities | Derived locally from the key in `.env` and compared with this README's earlier record; 63 txs on chain |
-| [`0x166efae608457303daf2af830d281922c5d6ee20`](https://tiramisu.explorer.arkiv.network/address/0x166efae608457303daf2af830d281922c5d6ee20) | **Trusted "society desk" verifier** (`VERIFIER_PRIVATE_KEY`). Trusted by the app through `EXPO_PUBLIC_TRUSTED_VERIFIERS` | `attestation` (vouch) entities for seeded riders. Any viewer may trust other verifiers instead | `.env.example`, `docs/SUBMISSION.md`; matches the verifier key's address |
+| [`0x166efae608457303daf2af830d281922c5d6ee20`](https://tiramisu.explorer.arkiv.network/address/0x166efae608457303daf2af830d281922c5d6ee20) | **Trusted "society desk" verifier** (`VERIFIER_PRIVATE_KEY`). Trusted by the app through `EXPO_PUBLIC_TRUSTED_VERIFIERS` | `attestation` (vouch) entities for seeded riders. Any viewer may trust other verifiers instead | `.env.example`; matches the verifier key's address |
 | [`0x0f6bc19ed15e4b939decb1359dcea6c30980c271`](https://tiramisu.explorer.arkiv.network/address/0x0f6bc19ed15e4b939decb1359dcea6c30980c271) | **Arkiv Triggers worker, production** (`TRIGGERS_WORKER_PRIVATE_KEY`, served at <https://arkiv-triggers-worker.onrender.com>) | `firing` receipt entities (readonly, 30 days). It pays gas for them | `GET /health` of the worker returns this address |
-| [`0x2da1bea8ec53f4dc01720f64cdc29ce3a5028ba0`](https://tiramisu.explorer.arkiv.network/address/0x2da1bea8ec53f4dc01720f64cdc29ce3a5028ba0) | Local-dev worker address: what the worker derives when `TRIGGERS_WORKER_PRIVATE_KEY` is unset (persona `triggers-worker`) | Used only in the local live test in [`docs/TRIGGERS_LIVE_TEST.md`](docs/TRIGGERS_LIVE_TEST.md). Not the production worker | `docs/SUBMISSION.md`, `docs/TRIGGERS_LIVE_TEST.md`; derivation reproduced locally |
+| [`0x2da1bea8ec53f4dc01720f64cdc29ce3a5028ba0`](https://tiramisu.explorer.arkiv.network/address/0x2da1bea8ec53f4dc01720f64cdc29ce3a5028ba0) | Local-dev worker address: what the worker derives when `TRIGGERS_WORKER_PRIVATE_KEY` is unset (persona `triggers-worker`) | Used only in the local live test in [`docs/TRIGGERS_LIVE_TEST.md`](docs/TRIGGERS_LIVE_TEST.md). Not the production worker | `docs/TRIGGERS_LIVE_TEST.md`; derivation reproduced locally |
 
 **Seeded persona wallets** (created by `pnpm seed` on 16 Oct 2026; the first four are also the wallets the 15-minute heartbeat acts as)
 
@@ -271,7 +271,7 @@ flowchart TB
     OPS["scripts/seed · seed, heartbeat, fund, live-check"] --> ADP
 ```
 
-The app only talks to the `BhaiyaPlease` interface. `EXPO_PUBLIC_CORE=mock` runs the same services over an in-memory chain for offline development. Deeper write-ups: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/TRIGGERS.md`](docs/TRIGGERS.md), [`docs/SDK_NOTES.md`](docs/SDK_NOTES.md), [`arkiv/schema.md`](arkiv/schema.md) (entities, attributes, expiry, queries, trust model).
+The app only talks to the `BhaiyaPlease` interface. `EXPO_PUBLIC_CORE=mock` runs the same services over an in-memory chain for offline development. Deeper write-ups: [`docs/TRIGGERS.md`](docs/TRIGGERS.md), [`docs/SDK_NOTES.md`](docs/SDK_NOTES.md), [`arkiv/schema.md`](arkiv/schema.md) (entities, attributes, expiry, queries, trust model).
 
 ### Repository layout
 
@@ -287,7 +287,7 @@ packages/triggers-worker/  Node worker: HTTP channel API, Web Push / Expo push /
 scripts/seed/           seed.ts, heartbeat.ts, fund.ts, live-check.ts
 scripts/spike/          chain spike: PASS/FAIL for each risky SDK behaviour
 arkiv/                  schema.md and friction.md (hackathon deliverables)
-docs/                   TESTING, UI_SCREENS, ARCHITECTURE, TRIGGERS, SDK_NOTES, SUBMISSION, COMPETITION, ...
+docs/                   TESTING, DEPLOY, TRIGGERS, TRIGGERS_LIVE_TEST, UI_SCREENS, SDK_NOTES
 .github/workflows/      ci.yml (tests + typecheck), heartbeat.yml
 ```
 
@@ -358,7 +358,7 @@ Worker environment (names only; set the secrets in the host dashboard, never in 
 | `TRIGGERS_DATA_DIR` | channels and engine state (JSON, mode 0600) | no |
 | `TRIGGERS_ALLOWED_ORIGINS` | CORS origins, e.g. the Vercel URL | no |
 
-Web build variables: `EXPO_PUBLIC_CORE`, `EXPO_PUBLIC_ARKIV_RPC_URL`, `EXPO_PUBLIC_TRUSTED_VERIFIERS`, `EXPO_PUBLIC_ARKIV_ACCESS_KEY` (public once bundled), `EXPO_PUBLIC_TRIGGERS_URL`, `EXPO_PUBLIC_TRIGGERS_WORKER`. Deep routes need the `index.html` rewrite. The complete deploy and smoke-test guide is [`docs/SUBMISSION.md`](docs/SUBMISSION.md#2-deploy).
+Web build variables: `EXPO_PUBLIC_CORE`, `EXPO_PUBLIC_ARKIV_RPC_URL`, `EXPO_PUBLIC_TRUSTED_VERIFIERS`, `EXPO_PUBLIC_ARKIV_ACCESS_KEY` (public once bundled), `EXPO_PUBLIC_TRIGGERS_URL`, `EXPO_PUBLIC_TRIGGERS_WORKER`. Deep routes need the `index.html` rewrite. The complete deploy and smoke-test guide is [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 The heartbeat acts as the seeded demo wallets (rider personas and `resident-demo`) with testnet-only GitHub secrets, announcing 2-3 synthetic runs per tick.
 

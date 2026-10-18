@@ -7,7 +7,7 @@
  * Conventions
  *   - Queries return decoded, zod-validated domain objects. Entities that fail validation are DROPPED
  *     (anyone can write project=bhaiyaplease). Queries never return expired entities.
- *   - Queries apply the trust filters in ARCHITECTURE.md §Trust model; callers never re-check $creator.
+ *   - Queries apply the trust filters in arkiv/schema.md §6 (Trust model); callers never re-check $creator.
  *   - Mutations resolve after inclusion (receipt received) and return { key, txHash }.
  *   - Mutations are serialized per wallet inside core (single write queue → no nonce races).
  *   - Errors are always BhaiyaPleaseError (see types.ts) — never raw SDK/viem errors.
