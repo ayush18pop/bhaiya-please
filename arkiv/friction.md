@@ -16,7 +16,7 @@ Full SDK notes: [`docs/SDK_NOTES.md`](../docs/SDK_NOTES.md). Probe and spike cod
 
 | # | Finding | Kind | Evidence |
 |---|---|---|---|
-| [21](#21-the-read-quota-is-cost-based-and-undocumented-and-its-429-looks-like-a-rate-limit) | The read quota is cost-based and undocumented, and its 429 looks like a rate limit (536 → 10 calls/min after the fix) | **blocker** | chain |
+| [21](#21-a-spent-read-quota-answers-http-429-the-same-status-as-the-rate-limit-so-standard-clients-retry-it) | A spent read quota answers HTTP 429 like the rate limit, so clients retry it (536 → 10 calls/min after the fix) | **blocker** | chain |
 | [13](#13-watchentityevents-carries-no-attributes-no-type-no-filter-expiry-emits-nothing) | `watchEntityEvents` carries no attributes, type or filter, and expiry emits nothing | major | source, chain |
 | [22](#22-a-browser-app-pays-one-read-per-foreign-entity-to-use-watchentityevents-on-the-shared-testnet) | A browser pays one read per foreign entity to use `watchEntityEvents` | major | chain |
 | [3](#3-forgetting-salt-after-predictentitykeys-silently-yields-a-different-key) | Forgetting `salt` after `predictEntityKeys` silently yields a different key | major | source |
@@ -28,7 +28,7 @@ Full SDK notes: [`docs/SDK_NOTES.md`](../docs/SDK_NOTES.md). Probe and spike cod
 | [4](#4-executebatch-result-echoes-input-for-everything-except-creates) | The `executeBatch` result echoes the input for everything except creates | moderate | source |
 | [18](#18-arkiv_query-reuses-json-rpc-code--32005-for-cursor-expired) | `arkiv_query` reuses code -32005 for "cursor expired" | moderate | source |
 | [10](#10-access-key-format-is-not-shown-and-the-key-is-public-in-a-browser) | The access key format is not shown, and the key is public in a browser | moderate | chain |
-| [16](#16-shared-testnet-limits-are-not-stated) | Shared-testnet limits are not stated | moderate | chain |
+| [16](#16-two-read-limits-with-different-behaviour-share-one-error-status) | Two read limits (rate and cost budget) share one 429 status | moderate | chain |
 | [2](#2-wallet-client-has-no-read-actions) | The wallet client has no read actions | minor | source |
 | [6](#6-expiry-durations-multiples-of-2-s-only-approximate-and-permanent-exists) | Expiry must be a multiple of 2 s, is approximate, and `permanent()` exists | minor | source |
 | [9](#9-no-match-all-query-and-no-filtered-count) | No match-all query and no filtered count | minor | source |
@@ -164,12 +164,12 @@ The one thing we would fix first is in [section C](#c-one-thing-arkiv-should-imp
 - **Workaround**: none needed.
 - **Time lost (estimate)**: 0 min.
 
-### 16. Shared-testnet limits are not stated
+### 16. Two read limits with different behaviour share one error status
 - **SDK**: 0.8.1. **Symbol**: public RPC with and without an access key.
-- **Expected**: rate limits and quotas stated up front.
-- **Actual**: none are documented. The public RPC served `select`, system-attribute filters, `getEntity` and `atBlock` queries without a key on 16 Oct. We then measured two separate limits: a request rate limit (anonymous `ratelimit: limit=600, reset=60`, S8) and, a day later, a cost-based read quota that is the one apps actually hit (finding 21). Evidence: `chain`.
-- **Reproduce**: `scripts/spike` read steps; response headers on any RPC call.
-- **Workaround**: transient 429/5xx are retried with backoff (reads only; writes only before broadcast); a spent quota is never retried (finding 21); joins are batched; each query family has its own polling interval.
+- **Expected**: one place in the SDK docs that explains what limits a client will meet and how to handle each.
+- **Actual**: there are two. A request rate limit (anonymous `ratelimit: limit=600, remaining=599, reset=60`, keyed `limit=9999`; see S8), which recovers within a minute, and a cost-based read budget per key (and per anonymous caller), whose remaining amount is shown on hub.arkiv.network and which lasts until it resets. Both answer HTTP 429, so a client cannot tell from the status which one it hit (finding 21). On 16 Oct the public RPC served `select`, system-attribute filters, `getEntity` and `atBlock` queries without a key; the budget became the binding limit a day later under real use. Evidence: `chain`.
+- **Reproduce**: response headers on any RPC call (rate limit); spend a budget and compare the 429 bodies (finding 21).
+- **Workaround**: classify by response body, not status: transient 429/5xx are retried with backoff (reads only; writes only before broadcast); a spent budget is never retried (finding 21); joins are batched; each query family has its own polling interval.
 - **Time lost (estimate)**: 30 min.
 
 ## B. Chain spike and seed results (16 Oct 2026)
@@ -219,13 +219,13 @@ Setup: SDK `@arkiv-network/sdk` **0.8.1**, `viem` 2.57.7, Node 20, Tiramisu (cha
 - **Actual**: the fixture history (38 handoffs, ~5 dependent transactions each, every one waiting for its receipt) took **≈ 40 minutes** wall clock (8.5 min before the first run was interrupted, then 1,868 s for `--resume`), dominated by receipt waits and by profile recomputation before each tier-gated write (a profile read joins every receipt to its Delivery and Request, so it grows with history). Dependencies (request key must exist before the delivery reveals it; receipt needs the delivery) prevent batching across steps, and per-wallet nonce ordering prevents parallelism within a wallet. Evidence: `chain`.
 - **Workaround**: run once; the heartbeat only adds cheap runs.
 
-#### 21. The read quota is cost-based and undocumented, and its 429 looks like a rate limit
+#### 21. A spent read quota answers HTTP 429, the same status as the rate limit, so standard clients retry it
 - **SDK**: 0.8.1 + viem 2.57.7. **Surface**: public RPC `https://rpc.tiramisu.db-chain.testnet.arkiv.network`, `arkiv_query`, with and without an access key.
-- **Expected**: a documented quota (per key and anonymous) with a clear error, or a `Retry-After` that clients can act on, distinct from the "600 requests/min" rate limit.
-- **Actual**: on 17 Oct two fresh access keys in a row stopped answering `arkiv_query` with HTTP 429 `{"error":"QUOTA_EXCEEDED","message":"quota exhausted"}`, and anonymous reads with 429 `{"error":"ANON_COST_LIMITED","message":"unauthenticated query budget exhausted; get an API key at https://hub.arkiv.network for a monthly quota"}`. Other teams measured about 100 cost units per query against a 10,000-unit anonymous window. `eth_blockNumber` and writes kept working. Because it is a 429, viem's default HTTP transport retries it (3×), and so did our core and React Query on top. One idle app tab measured **536 calls/min**, nearly all retries of refused reads, which burned the next key faster. Evidence: `chain` (curl on both paths, request counts captured in headless Chromium by query type).
-- **Reproduce**: exhaust a key, then `curl -H 'X-API-KEY: <key>' -d '{"jsonrpc":"2.0","id":1,"method":"arkiv_query","params":["project = str(\'bhaiyaplease\') AND type = str(\'shop\')",{"select":{"key":true}}]}' <rpc>` → 429 `QUOTA_EXCEEDED`; the same without the header → 429 `ANON_COST_LIMITED` (once the anonymous budget is spent).
-- **Workaround**: `classify()` maps both bodies to `QUOTA_EXHAUSTED`, which is never retried; viem `retryCount: 0` (the adapter owns retries); keyed → anonymous fallback, then a 60 s read breaker (`packages/core/src/arkiv/adapter.ts`); per-query-family polling (live board 20 s, profiles 2 min, shops 5 min). Idle cost fell to **10 calls/min**. A test pins the classification (`packages/core/test/quota.test.ts`).
-- **Fix that would help**: answer a spent quota with a non-429 status or a code that viem won't retry, and state the per-query cost next to the quota in the SDK docs so client authors can budget polling.
+- **Expected**: running out of quota is a terminal state for the period, so the response tells clients "do not retry" (a non-429 status, or `Retry-After` set to the reset time), distinct from the per-minute rate limit, which is worth retrying.
+- **Actual**: reads are metered by cost (other teams measured about 100 units per `arkiv_query`), and the remaining budget is shown per key on hub.arkiv.network. When it runs out, the RPC answers HTTP 429 `{"error":"QUOTA_EXCEEDED","message":"quota exhausted"}` (keyed) or 429 `{"error":"ANON_COST_LIMITED","message":"unauthenticated query budget exhausted; get an API key at https://hub.arkiv.network for a monthly quota"}` (anonymous). That is the same status as the 600-requests/min rate limit, whose `ratelimit` headers track request rate rather than cost budget. `eth_blockNumber` and writes keep working. Because it is a 429, viem's HTTP transport retries it by default (3×), and so did our core and React Query on top. One idle app tab measured **536 calls/min**, nearly all retries of refused reads, which spent the next key's budget faster. Evidence: `chain` (curl on both paths on 17 Oct, request counts captured in headless Chromium by query type).
+- **Reproduce**: spend a key's budget, then `curl -H 'X-API-KEY: <key>' -d '{"jsonrpc":"2.0","id":1,"method":"arkiv_query","params":["project = str(\'bhaiyaplease\') AND type = str(\'shop\')",{"select":{"key":true}}]}' <rpc>` → 429 `QUOTA_EXCEEDED`; the same without the header → 429 `ANON_COST_LIMITED` (once the anonymous budget is spent). Point a default viem `http()` transport at it and count the requests per call.
+- **Workaround**: `classify()` reads the body and maps both errors to `QUOTA_EXHAUSTED`, which is never retried; viem `retryCount: 0` (the adapter owns retries); keyed → anonymous fallback, then a 60 s read breaker (`packages/core/src/arkiv/adapter.ts`); per-query-family polling (live board 20 s, profiles 2 min, shops 5 min). Idle cost fell to **10 calls/min**. A test pins the classification (`packages/core/test/quota.test.ts`).
+- **Fix that would help**: answer a spent quota with a status clients do not retry by default (e.g. 402 or 403 with the same body), or keep 429 with `Retry-After` set to the reset time; and note in the SDK docs that `http()` should be created with `retryCount: 0` (or a quota-aware `retry`) for read-heavy browser apps.
 - **Time lost (estimate)**: 4 h (diagnosis, measurement, the fix, and re-testing on new keys).
 
 #### 22. A browser app pays one read per foreign entity to use `watchEntityEvents` on the shared testnet
