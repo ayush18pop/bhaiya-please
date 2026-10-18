@@ -78,7 +78,7 @@ sequenceDiagram
     R->>A: batch: create accept + patch run capacity_left
     R->>A: patch run: at the gate
     U-->>R: shows QR (code + salt) at the gate, UPI payment off-chain
-    R->>A: create delivery (reveal; anyone can re-hash against the commit)
+    R->>A: create delivery (reveals code + salt, anyone can re-hash it against the commit)
     U->>A: batch: create readonly receipt + transfer it to the rider
     Note over A: creator = resident, owner = rider. Reputation = receipts the rider owns, recomputed by any viewer
 ```
