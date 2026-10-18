@@ -17,7 +17,7 @@ Full SDK notes: [`docs/SDK_NOTES.md`](../docs/SDK_NOTES.md). Probe and spike cod
 | # | Finding | Kind | Evidence |
 |---|---|---|---|
 | [21](#21-a-spent-read-quota-answers-http-429-the-same-status-as-the-rate-limit-so-standard-clients-retry-it) | A spent read quota answers HTTP 429 like the rate limit, so clients retry it (536 → 10 calls/min after the fix) | **blocker** | chain |
-| [13](#13-watchentityevents-carries-no-attributes-no-type-no-filter-expiry-emits-nothing) | `watchEntityEvents` carries no attributes, type or filter, and expiry emits nothing | major | source, chain |
+| [13](#13-watchentityevents-cant-filter-by-project-or-type-events-carry-no-attributes-and-expiry-emits-nothing) | `watchEntityEvents` can't filter by project or type, events carry no attributes, and expiry emits nothing | major | source, chain |
 | [22](#22-a-browser-app-pays-one-read-per-foreign-entity-to-use-watchentityevents-on-the-shared-testnet) | A browser pays one read per foreign entity to use `watchEntityEvents` | major | chain |
 | [3](#3-forgetting-salt-after-predictentitykeys-silently-yields-a-different-key) | Forgetting `salt` after `predictEntityKeys` silently yields a different key | major | source |
 | [8](#8-bare-numbers-are-i32-comparing-a-u64-attribute-with-a-bare-number-matches-nothing) | A bare number is `i32`, so a `u64` comparison silently matches nothing | major | chain |
@@ -140,12 +140,13 @@ The one thing we would fix first is in [section C](#c-one-thing-arkiv-should-imp
 - **Workaround**: adapter maps to `RawEntity` and lowercases addresses/keys/bytes32.
 - **Time lost (estimate)**: 30 min.
 
-### 13. `watchEntityEvents` carries no attributes, no type, no filter; expiry emits nothing
+### 13. `watchEntityEvents` can't filter by project or type, events carry no attributes, and expiry emits nothing
 - **SDK**: 0.8.1. **Symbol**: `pub.watchEntityEvents({ onEntityCreated, ... })`.
 - **Expected**: subscribe to "my project's runs"; be told when something expires.
-- **Actual**: the stream is all of Tiramisu (a third-party indexer load generator creates entities every block), events have key + owner only, `ExpiryExtended.owner` is the entity owner not the extender, and nothing fires on expiry. A project-filtered live board needs one `get` per foreign event. Evidence: `source` and `chain` (observed foreign traffic on 16 Oct).
-- **Reproduce**: subscribe and log; count events without `project=bhaiyaplease`.
+- **Actual**: the SDK function exposes no filter (only `fromBlock` and `pollingInterval`), so the stream is all of Tiramisu (a third-party load generator creates entities every block). Each event carries only the entity key and owner, `ExpiryExtended.owner` is the entity owner, not the extender, and nothing fires on expiry. Underneath, the events are EVM logs on `0x4400…0044` whose `entityKey` and `owner` are indexed topics, so a raw viem `watchEvent` with `args` **can** filter by key or owner at the node (WebSocket subscriptions work too). What no filter can express is project or type, so a project-filtered live board still needs one `get` per new entity it doesn't already know. Evidence: `source` and `chain` (foreign traffic on 16 Oct; on 18 Oct over `wss://`: 17 unfiltered `EntityCreated` logs in 20 s, 0 with an `owner` filter in 25 s).
+- **Reproduce**: subscribe with `watchEntityEvents` and count events without `project=bhaiyaplease`; then `watchEvent({ address: '0x4400…0044', event: EntityCreated, args: { owner } })` and compare.
 - **Workaround**: core keeps one shared poller that resolves unknown keys at ≤ 10 `get`/s and remembers foreign keys (`arkiv/watcher.ts`); the UI hides expired items by `eta` / `expiresAt` on a ticking clock. On the real chain the app no longer subscribes at all, because of the read cost (finding 22): screens poll their own small queries and Arkiv Triggers delivers pushes. The sandbox still uses the event stream.
+- **Fix that would help**: expose the key / owner filters in `watchEntityEvents`, and add project / type as indexed topics (or attributes in the event).
 - **Time lost (estimate)**: 2 h.
 
 ### 14. Building a query string to log or document is not a documented feature
@@ -233,7 +234,7 @@ Setup: SDK `@arkiv-network/sdk` **0.8.1**, `viem` 2.57.7, Node 20, Tiramisu (cha
 - **Expected**: subscribe to one project's events without paying for everyone else's.
 - **Actual**: events carry no attributes, so classifying a created key needs a `get` (an `arkiv_query`, about 100 cost units). On a busy shared testnet our watcher spent about 87 reads/min classifying other projects' entities. Under a cost quota, real-time events are unaffordable in the browser. Evidence: `chain` (headless capture: `$key = key(…)` queries/min with the app idle).
 - **Workaround**: no global watcher in real mode; screens poll their own small queries, and push comes from Arkiv Triggers (one shared worker watching, finding 23).
-- **Fix that would help**: server-side filtering on events (project / type attributes), or attributes included in the event.
+- **Fix that would help**: project / type as filterable event topics, or attributes included in the event. (Filtering by key or owner already works on raw logs, finding 13, but a board can't know the creators of entities it hasn't seen.)
 - **Time lost (estimate)**: included in 21.
 
 #### 23. Historical reads (`atBlock`) made a trustless no-show proof possible (positive)
@@ -243,6 +244,6 @@ Setup: SDK `@arkiv-network/sdk` **0.8.1**, `viem` 2.57.7, Node 20, Tiramisu (cha
 
 ## C. One thing Arkiv should improve first
 
-**Let a client subscribe to one project's events.** Today `watchEntityEvents` streams every entity on the shared testnet with only a key and an owner, so an app must spend one read per foreign entity just to learn it is not its own (findings 13 and 22). Under the read quota that makes real-time updates unaffordable in a browser, which is why our real-chain app polls instead and we built Arkiv Triggers to watch on users' behalf. A server-side filter on `project` / `type` (or the attributes included in each event), plus an event when an entity expires, would turn live boards, notifications and expiry-driven flows into one subscription.
+**Let a client subscribe to one project's events.** Today `watchEntityEvents` streams every entity on the shared testnet with only a key and an owner; the raw logs underneath can be filtered by key or owner but not by project, so an app must spend one read per new entity just to learn whether it is its own (findings 13 and 22). Under the read quota that makes real-time updates unaffordable in a browser, which is why our real-chain app polls instead and we built Arkiv Triggers to watch on users' behalf. A server-side filter on `project` / `type` (or the attributes included in each event), plus an event when an entity expires, would turn live boards, notifications and expiry-driven flows into one subscription.
 
 After that: answer a spent read quota with a status or code that HTTP clients do not retry by default (finding 21), batch results that reflect on-chain effects (finding 4), and a first-class predict-and-create (finding 3).
