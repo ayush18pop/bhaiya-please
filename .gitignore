@@ -5,6 +5,8 @@ web-build/
 *.tsbuildinfo
 .DS_Store
 .vercel/
+# local judging backend state: logs, pids, ngrok binary and credentials
+.judging/
 # secrets: never commit keys
 .env
 .env.*

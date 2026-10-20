@@ -184,7 +184,13 @@ async function call<T>(url: string, init: RequestInit = {}, timeoutMs = 10_000):
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { ...init, signal: ctrl.signal });
+    const res = await fetch(url, {
+      ...init,
+      // ngrok free tunnels interpose a browser-warning page unless this header is set.
+      // Harmless (and ignored) by workers behind other TLS proxies or direct origins.
+      headers: { 'ngrok-skip-browser-warning': '1', ...(init.headers as Record<string, string> | undefined) },
+      signal: ctrl.signal,
+    });
     const text = await res.text();
     let body: unknown = undefined;
     try {
