@@ -115,7 +115,7 @@ export function createWorkerServer(o: ServerOptions): Server {
       res.setHeader('vary', 'Origin');
     }
     res.setHeader('access-control-allow-methods', 'GET, POST, DELETE, OPTIONS');
-    res.setHeader('access-control-allow-headers', 'content-type');
+    res.setHeader('access-control-allow-headers', 'content-type, ngrok-skip-browser-warning');
     res.setHeader('access-control-max-age', '600');
   }
 
